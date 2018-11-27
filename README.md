@@ -1,4 +1,5 @@
 
+# Trace
 Trace is a simple raytracer I created. Its current target is Windows, but it should be relatively easy to translate to Linux or Mac as the only platform specific code is for threading. It features a simple Python front end for creating images, but the C program can be used standalone. The program is not any more efficient than any other raytracer, nor any better, it was simply a learning experience to create something adequately speedy. It features some basic effects, including shadows, reflections, and refractions.
 
 # Compiling
