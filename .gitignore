@@ -1,0 +1,14 @@
+/*.png
+/*.o
+/*.pdb
+/*.vcxproj.*
+/*.pdb
+/*.ilk
+/*.exe
+/.vscode/
+/__pycache__/
+/Debug/
+/x64/
+/.vs/
+/luamatrix.c
+/luamatrix.h
