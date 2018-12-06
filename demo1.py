@@ -6,7 +6,7 @@ print("-Demo 1-")
 trace = Trace(
     sky_color=(0.5, 0, 0.5),
     out_file="demo1.png",
-    quality=16
+    quality=32
 )
 
 scene = Object(trace, [Location(0, 0, -8)])

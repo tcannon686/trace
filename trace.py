@@ -132,7 +132,7 @@ class Mesh(Object):
     material parameter."""
     def __init__(self, trace, transforms = [], material=None, parent=None):
         super().__init__(trace, transforms, parent)
-        self.material = material if material != None else Material(trace)
+        self.material = material if material != None else trace.defaultMaterial
     def primitiveToCode(self, quality):
         return 'mat_index ' + str(self.trace.materials.index(self.material)) + '\n'
 
@@ -140,7 +140,6 @@ class Plane(Mesh):
     """A plane mesh, perpendicular to the Y-axis."""
     def __init__(self, trace, transforms = [], material = None, parent=None):
         super().__init__(trace, transforms, material, parent)
-        self.material = material if material != None else Material(trace)
     
     def primitiveToCode(self, quality):
         ret = super().primitiveToCode(quality)
@@ -164,13 +163,7 @@ make_face
 
 class Cube(Mesh):
     """A unit cube mesh."""
-    def __init__(self, trace, transforms = [], material = None, parent=None):
-        super().__init__(trace, transforms, material, parent)
-        self.material = material if material != None else Material(trace)
-    def primitiveToCode(self, quality):
-        ret = super().primitiveToCode(quality)
-        ret +=\
-"""vertex -0.5 0.5 -0.5
+    primitiveCode = """vertex -0.5 0.5 -0.5
 normal 0 1 0
 vertex 0.5 0.5 -0.5
 normal 0 1 0
@@ -184,7 +177,6 @@ normal 0 1 0
 vertex -0.5 0.5 -0.5
 normal 0 1 0
 make_face
-
 vertex -0.5 -0.5 -0.5
 normal 0 -1 0
 vertex 0.5 -0.5 -0.5
@@ -199,7 +191,6 @@ normal 0 -1 0
 vertex -0.5 -0.5 -0.5
 normal 0 -1 0
 make_face
-
 vertex -0.5 -0.5 -0.5
 normal -1 0 0
 vertex -0.5 -0.5 0.5
@@ -214,7 +205,6 @@ normal -1 0 0
 vertex -0.5 0.5 0.5
 normal -1 0 0
 make_face
-
 vertex 0.5 -0.5 -0.5
 normal 1 0 0
 vertex 0.5 -0.5 0.5
@@ -229,7 +219,6 @@ normal 1 0 0
 vertex 0.5 0.5 0.5
 normal 1 0 0
 make_face
-
 vertex -0.5 -0.5 -0.5
 normal 0 0 -1
 vertex 0.5 -0.5 -0.5
@@ -244,7 +233,6 @@ normal 0 0 -1
 vertex -0.5 0.5 -0.5
 normal 0 0 -1
 make_face
-
 vertex -0.5 -0.5 0.5
 normal 0 0 1
 vertex 0.5 -0.5 0.5
@@ -260,6 +248,11 @@ vertex -0.5 0.5 0.5
 normal 0 0 1
 make_face
 """
+    def __init__(self, trace, transforms = [], material = None, parent=None):
+        super().__init__(trace, transforms, material, parent)
+    def primitiveToCode(self, quality):
+        ret = super().primitiveToCode(quality)
+        ret += Cube.primitiveCode
         return ret
 
 class Lathe(Mesh):
@@ -422,14 +415,13 @@ class Trace:
         self.objects = []
         self.code_path = code_path
         self.quality = quality
+        self.defaultMaterial = Material(self)
     
     def trace(self):
         """Renders the scene. This will save the rendered image to out_path."""
         output = ''
-        for material in self.materials:
-            output += material.toCode(self.quality)
-        for obj in self.objects:
-            output += obj.toCode(self.quality)
+        output += ''.join([material.toCode(self.quality) for material in self.materials])
+        output += ''.join([obj.toCode(self.quality) for obj in self.objects])
         output += 'cam_fov ' + str(self.fov) + '\n'
         output += 'render_samples ' + str(self.render_samples) + '\n'
         output += 'render_threads ' + str(self.render_threads) + '\n'

@@ -199,7 +199,7 @@ vector_t RandomVector(int axes);
 ray_t NewRay(vector_t o, vector_t d);
 
 int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri);
-int RayTriangles(hit_t *hit_ptr, ray_t ray, tri_list_t *triangles_ptr);
+int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr);
 int RayTree(hit_t *hit_ptr, ray_t ray, kd_tree_t *tree_ptr);
 
 vecc_t RayBox(ray_t *ray, bounding_box_t box);

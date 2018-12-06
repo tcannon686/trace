@@ -139,22 +139,17 @@ inline int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 	return 1;
 }
 
-/*inline hit_t RayTriangles(ray_t ray, tri_list_t *triangles_ptr, kd_tree_t *tree_ptr)
+int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr)
 {
 	tri_list_t *current_ptr = triangles_ptr;
-	hit_t top;
-	top.t = INFINITY;
+	int ret = 0;
 	while(current_ptr != NULL)
 	{
-		hit_t hit = RayTriangle(ray, current_ptr->current, tree_ptr);
-		if(hit.t < top.t)
-		{
-			top = hit;
-		}
+		ret = ret || RayTriangle(hit_ptr, ray, current_ptr->current);
 		current_ptr = current_ptr->next_ptr;
 	}
-	return top;
-}*/
+	return ret;
+}
 
 bounding_box_t BoundingBox(triangle_t tri)
 {
@@ -264,12 +259,15 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
 	bounding_box_t box_origins = BoundingBoxTriListOrigins(triangles_ptr);
 
 	vector_t origin = vec3(0, 0, 0);
+	vector_t last = triangles_ptr->current.origin;
 	tri_list_t *current_ptr;
-	int count = 0;
+	int count = 0, same = 1;
 
 	for(current_ptr = triangles_ptr; current_ptr != NULL; current_ptr = current_ptr->next_ptr)
 	{
 		origin = VectorPlusVector(origin, current_ptr->current.origin);
+		if(same && !VectorEqualsVector(last, current_ptr->current.origin))
+			same = 0;
 		count ++;
 	}
 
@@ -289,8 +287,8 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
 	tree_ptr->axis.m[tree_ptr->axis_index] = 1;
 	tree_ptr->median = origin;
 
-	// Break if this is a leaf node
-	if(count == 1)
+	// Break if this is a leaf node (i.e. all the triangles have the same origin)
+	if(same == 1)
 		return tree_ptr;
 	
 	// Otherwise split the triangles based on left or right
@@ -513,7 +511,7 @@ int RayTreeRecursive(hit_t *hit_ptr, ray_t *ray, kd_tree_t *tree_ptr)
 	{
 		if(tree_ptr->triangles_ptr != NULL)
 		{
-			return RayTriangle(hit_ptr, ray, tree_ptr->triangles_ptr->current);
+			return RayTriangles(hit_ptr, ray, tree_ptr->triangles_ptr);
 		}
 		
 		int left, right;
@@ -568,7 +566,7 @@ void PrintTree(kd_tree_t *tree_ptr, int indent)
 			for (int j = 0; j < indent; j++)
 				printf(" ");
 			printf("        Vertex: %s\n", median);
-			free(vertex);
+			free((void *)vertex);
 		}
 	}
 	free((void *)boxA);
@@ -1268,7 +1266,6 @@ int main(int argc, char **argv)
 				printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
 			printf("okay\n");
 			FreeTree(tree_ptr);
-			printf("Done!\n");
 		}
 		else if(strcmp(cmd_str, "print_triangles") == 0)
 		{
