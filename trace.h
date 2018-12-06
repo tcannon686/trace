@@ -209,6 +209,8 @@ void SeedHalton(int index);
 
 vector_t VectorMix(vector_t left, vector_t right, vecc_t a);
 
+void PrintTriangles(tri_list_t *triangles_ptr);
+
 void FreeTriList(tri_list_t *list_ptr);
 void FreeTree(kd_tree_t *tree_ptr);
 void FreeMaterialList(mat_list_t *list_ptr);

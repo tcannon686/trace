@@ -287,6 +287,7 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
 	
 	tree_ptr->axis = vec4(0, 0, 0, 0);
 	tree_ptr->axis.m[tree_ptr->axis_index] = 1;
+	tree_ptr->median = origin;
 
 	// Break if this is a leaf node
 	if(count == 1)
@@ -390,140 +391,18 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
 	tree_ptr->right_ptr = GenerateTree(right_triangles_ptr, depth + 1);
 	if(tree_ptr->right_ptr != NULL)
 		tree_ptr->right_ptr->parent_ptr = tree_ptr;
-	return tree_ptr;
-}
-
-kd_tree_t *GenerateTreeOld(tri_list_t *triangles_ptr, int depth)
-{
-	kd_tree_t *tree_ptr = (kd_tree_t *)malloc(sizeof(kd_tree_t));
-	memset(tree_ptr, 0, sizeof(kd_tree_t));
 	
-	tree_ptr->triangles_ptr = triangles_ptr;
-	tree_ptr->box = Expand(BoundingBoxTriList(triangles_ptr));
-	
-	bounding_box_t box_origins = BoundingBoxTriListOrigins(triangles_ptr);
-
-	vector_t dimensions = VectorMinusVector(box_origins.b, box_origins.a);
-	if(dimensions.x > dimensions.y && dimensions.x > dimensions.z)
-	{
-		tree_ptr->axis = vec3(1, 0, 0);
-		tree_ptr->axis_index = 0;
-	}
-	else if(dimensions.y > dimensions.x && dimensions.y > dimensions.z)
-	{
-		tree_ptr->axis = vec3(0, 1, 0);
-		tree_ptr->axis_index = 1;
-	}
-	else
-	{
-		tree_ptr->axis = vec3(0, 0, 1);
-		tree_ptr->axis_index = 2;
-	}
-	/*tree_ptr->axis_index = depth % 3;
-	tree_ptr->axis = vec3(0, 0, 0);
-	tree_ptr->axis.m[tree_ptr->axis_index] =*/
-	
-	vector_t origin = vec3(0, 0, 0);
-	vecc_t count = 0;
-	
-	tri_list_t *left_ptr = NULL, *left_triangles_ptr = NULL;
-	tri_list_t *right_ptr = NULL, *right_triangles_ptr = NULL;
-	
-	tri_list_t *tri_ptr = triangles_ptr;
-	while(tri_ptr != NULL)
-	{
-		origin = VectorPlusVector(tri_ptr->current.origin, origin);
-		tri_ptr = tri_ptr->next_ptr;
-		count ++;
-	}
-	
-	origin = VectorTimesScalar(origin, 1.0 / count);
-	tri_ptr = triangles_ptr;
-	tree_ptr->median = origin;
-	
-	if(count > 1)
-	{
-		while(tri_ptr != NULL)
-		{
-			vecc_t dot = VectorDotVector(
-				VectorMinusVector(
-					tri_ptr->current.origin,
-					origin),
-				tree_ptr->axis);
-			if(dot <= 0)
-			{
-				// left
-			
-				// add triangle to left side
-				
-				tri_list_t *next_ptr = tri_ptr->next_ptr;
-				
-				if(tri_ptr->last_ptr != NULL)
-					tri_ptr->last_ptr->next_ptr = tri_ptr->next_ptr;
-				if(tri_ptr->next_ptr != NULL)
-					tri_ptr->next_ptr->last_ptr = tri_ptr->last_ptr;
-				tri_ptr->next_ptr = NULL;
-				tri_ptr->last_ptr = left_ptr;
-				if(left_ptr != NULL)
-					left_ptr->next_ptr = tri_ptr;
-				left_ptr = tri_ptr;
-				if(left_triangles_ptr == NULL)
-					left_triangles_ptr = left_ptr;
-				
-				// To continue the loop
-				tri_ptr = next_ptr;
-				continue;
-			}
-			else if(dot > 0)
-			{
-				// right
-			
-				// add triangle to right side
-				
-				tri_list_t *next_ptr = tri_ptr->next_ptr;
-				
-				if(tri_ptr->last_ptr != NULL)
-					tri_ptr->last_ptr->next_ptr = tri_ptr->next_ptr;
-				if(tri_ptr->next_ptr != NULL)
-					tri_ptr->next_ptr->last_ptr = tri_ptr->last_ptr;
-				tri_ptr->next_ptr = NULL;
-				tri_ptr->last_ptr = right_ptr;
-				if(right_ptr != NULL)
-					right_ptr->next_ptr = tri_ptr;
-				right_ptr = tri_ptr;
-				if(right_triangles_ptr == NULL)
-					right_triangles_ptr = right_ptr;
-				
-				// To continue the loop
-				tri_ptr = next_ptr;
-				continue;
-			}
-			tri_ptr = tri_ptr->next_ptr;
-		}
-	}
-	
-	if(left_triangles_ptr != NULL)
-	{
-		tree_ptr->left_ptr = GenerateTree(left_triangles_ptr, depth + 1);
-		tree_ptr->left_ptr->parent_ptr = tree_ptr;
-	}
-	if(right_triangles_ptr != NULL)
-	{
-		tree_ptr->right_ptr = GenerateTree(right_triangles_ptr, depth + 1);
-		tree_ptr->right_ptr->parent_ptr = tree_ptr;
-	}
-	if(left_triangles_ptr != NULL && right_triangles_ptr != NULL)
-		tree_ptr->triangles_ptr = NULL;
-	tree_ptr->parent_ptr = NULL;
 	return tree_ptr;
 }
 
 void FreeTriList(tri_list_t *list_ptr) {
+	tri_list_t *current_ptr;
 	tri_list_t *next_ptr;
-	while(list_ptr != NULL) {
-		next_ptr = list_ptr->next_ptr;
-		free(list_ptr);
-		list_ptr = next_ptr;
+	current_ptr = list_ptr;
+	while(current_ptr != NULL) {
+		next_ptr = current_ptr->next_ptr;
+		free(current_ptr);
+		current_ptr = next_ptr;
 	}
 }
 
@@ -613,7 +492,7 @@ inline vecc_t RayBox(ray_t *ray, bounding_box_t box)
 		return INFINITY;
 }
 
-inline ray_t NewRay(vector_t o, vector_t d)
+ray_t NewRay(vector_t o, vector_t d)
 {
 	ray_t ret;
 	ret.o = o;
@@ -661,9 +540,10 @@ int RayTree(hit_t *hit_ptr, ray_t ray, kd_tree_t *tree_ptr)
 
 void PrintTree(kd_tree_t *tree_ptr, int indent)
 {
-	const char *boxA, *boxB;
+	const char *boxA, *boxB, *median, *vertex;
 	boxA = VectorToString(tree_ptr->box.a);
 	boxB = VectorToString(tree_ptr->box.b);
+	median = VectorToString(tree_ptr->median);
 	
 	for(int i = 0; i < indent; i++)
 		printf(" ");
@@ -673,11 +553,27 @@ void PrintTree(kd_tree_t *tree_ptr, int indent)
 	for(int i = 0; i < indent; i++)
 		printf(" ");
 	printf("    Box A: %s\n", boxA);
-	for(int i = 0; i < indent; i++)
+	for (int i = 0; i < indent; i++)
 		printf(" ");
 	printf("    Box B: %s\n", boxB);
+	for (int i = 0; i < indent; i++)
+		printf(" ");
+	printf("    Median: %s\n", median);
+	for (tri_list_t *current = tree_ptr->triangles_ptr; current != NULL; current = current->next_ptr) {
+		for (int i = 0; i < indent; i++)
+			printf(" ");
+		printf("    Triangle %p:\n", current);
+		for (int i = 0; i < 3; i++) {
+			vertex = VectorToString(current->current.v[i]);
+			for (int j = 0; j < indent; j++)
+				printf(" ");
+			printf("        Vertex: %s\n", median);
+			free(vertex);
+		}
+	}
 	free((void *)boxA);
 	free((void *)boxB);
+	free((void *)median);
 	
 	if(tree_ptr->left_ptr != NULL)
 		PrintTree(tree_ptr->left_ptr, indent + 4);
@@ -878,29 +774,26 @@ void Render(
 
 int main(int argc, char **argv)
 {
-	tri_list_t triangles;
-	mat_list_t materials;
-	light_list_t lights;
 
 	matrix_t transform_stack[32];
 	matrix_t *transform_ptr = transform_stack;
 	IdentityMatrixP(transform_ptr);
 	
-	memset(&triangles, 0, sizeof(tri_list_t));
-	memset(&materials, 0, sizeof(mat_list_t));
-	memset(&lights, 0, sizeof(light_list_t));
-	
 	vector_t sky;
 	
-	tri_list_t *triangles_ptr = &triangles;
-	tri_list_t *triangle_ptr = &triangles;
-	mat_list_t *materials_ptr = &materials;
-	mat_list_t *material_ptr = &materials;
+	tri_list_t *triangles_ptr = (tri_list_t *)malloc(sizeof(tri_list_t));
+	tri_list_t *triangle_ptr = triangles_ptr;
+	mat_list_t *materials_ptr = (mat_list_t *)malloc(sizeof(mat_list_t));
+	mat_list_t *material_ptr = materials_ptr;
 	material_t *current_material_ptr = &material_ptr->current;
-	light_list_t *lights_ptr = &lights;
-	light_list_t *light_ptr = &lights;
+	light_list_t *lights_ptr = (light_list_t *)malloc(sizeof(light_list_t));
+	light_list_t *light_ptr = lights_ptr;
 	int current_point = 0,
 		current_normal = 0;
+
+	memset(triangles_ptr, 0, sizeof(tri_list_t));
+	memset(materials_ptr, 0, sizeof(mat_list_t));
+	memset(lights_ptr, 0, sizeof(light_list_t));
 	
 	vecc_t focal_length;
 	int samples = 1, section_size = 256, threads = 4, max_iterations = 10;
@@ -922,7 +815,7 @@ int main(int argc, char **argv)
 		while(!fscanf(input, "%s", cmd_str));
 		if(strcmp(cmd_str, "quit") == 0)
 		{
-			return 0;
+			break;
 		}
 		else if(strcmp(cmd_str, "vertex") == 0)
 		{
@@ -1230,6 +1123,10 @@ int main(int argc, char **argv)
 			char file[255];
 			fscanf(input, "%s", file);
 			input = fopen(file, "r");
+			if (input == NULL) {
+				printf("error: file not found.\n");
+				input = stdin;
+			}
 		}
 		else if(strcmp(cmd_str, "out_file") == 0)
 		{
@@ -1371,6 +1268,7 @@ int main(int argc, char **argv)
 				printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
 			printf("okay\n");
 			FreeTree(tree_ptr);
+			printf("Done!\n");
 		}
 		else if(strcmp(cmd_str, "print_triangles") == 0)
 		{
@@ -1416,7 +1314,9 @@ int main(int argc, char **argv)
 			fprintf(stderr, "error: Unknown command \"%s\".\n", cmd_str);
 		}
 	}
+	printf("info: freeing memory...\n");
 	FreeMaterialList(materials_ptr);
 	FreeLightList(lights_ptr);
+	printf("info: goodbye.\n");
 	return 0;
 }
