@@ -1306,7 +1306,7 @@ int main(int argc, char **argv)
 			rotate = NewRotateMatrix(angle, t);
 			*transform_ptr = MatrixTimesMatrix(*transform_ptr, rotate);
 		}
-		else
+		else if(strlen(cmd_str) > 0)
 		{
 			fprintf(stderr, "error: Unknown command \"%s\".\n", cmd_str);
 		}
