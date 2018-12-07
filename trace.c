@@ -41,7 +41,7 @@ void SeedHalton(int index)
 	halton_index = index;
 }
 
-inline vector_t RandomVector(int axes)
+vector_t RandomVector(int axes)
 {
 	halton_index ++;
 	vector_t ret = vec2(0, 0);
@@ -108,7 +108,7 @@ inline int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 		/ ldotn;
 	
 	if(d > hit_ptr->t)
-		return 1;
+		return 0;
 	
 	if(d <= 0)
 		return 0;
@@ -606,52 +606,42 @@ void PrintTriangles(tri_list_t *triangles_ptr) {
 	}
 }
 
-void RenderSection(
-	image_t image,
-	kd_tree_t *tree_ptr,
-	light_list_t *lights_ptr,
-	vector_t sky_color,
-	int x0, int y0,
-	int x1, int y1,
-	vecc_t aspect,
-	vecc_t scale_x, vecc_t scale_y,
-	vecc_t focal_length,
-	int samples,
-	int max_iterations,
-	render_params_t *rp_ptr)
+void RenderSection(render_params_t *rp_ptr)
 {
-	int sampleWidth = (int)sqrt(samples);
-	vecc_t sampleSize = 1.0 / samples;
-	for(int i = x0; i < x1; i ++)
+	int sampleWidth = (int)sqrt(rp_ptr->samples);
+	vecc_t sampleSize = 1.0 / sampleWidth;
+	for(int i = rp_ptr->x0; i < rp_ptr->x1; i ++)
 	{
-		for(int j = y0; j < y1; j ++)
+		for(int j = rp_ptr->y0; j < rp_ptr->y1; j ++)
 		{
 			vector_t pixel = vec3(0, 0, 0);
-			for(int k = 0; k < samples; k ++)
+			for(int k = 0; k < rp_ptr->samples; k ++)
 			{
 				vector_t sample_offset = 
 					vec2((k % sampleWidth) * sampleSize, (k / sampleWidth) * sampleSize);
 				ray_t ray = NewRay(
 					vec3(0, 0, 0),
-					vec3(scale_x * (((vecc_t)i - image.width / 2.0) + sample_offset.x),
-						scale_y * (((vecc_t)j - image.height / 2.0) + sample_offset.y),
-						-focal_length));
+					vec3(rp_ptr->scale_x * (((vecc_t)i - rp_ptr->image.width / 2.0) + sample_offset.x),
+						rp_ptr->scale_y * (((vecc_t)j - rp_ptr->image.height / 2.0) + sample_offset.y),
+						-rp_ptr->focal_length));
 				
 				hit_t result;
 				result.t = INFINITY;
-				result.tree_ptr = tree_ptr;
-				vector_t sample = sky_color;
-				if(RayTree(&result, ray, tree_ptr))
-					sample = VectorClamp(result.material_ptr->shader(result, lights_ptr, rp_ptr, 0, max_iterations));
+				result.tree_ptr = rp_ptr->tree_ptr;
+				vector_t sample = rp_ptr->sky_color;
+				if(RayTree(&result, ray, rp_ptr->tree_ptr))
+					sample = VectorClamp(result.material_ptr->shader(
+						result,
+						rp_ptr->lights_ptr, rp_ptr, 0, rp_ptr->max_iterations));
 				VectorPlusVectorP(&pixel, &pixel, &sample);
 			}
-			VectorTimesScalarP(&pixel, &pixel, 1.0 / samples);
+			VectorTimesScalarP(&pixel, &pixel, 1.0 / rp_ptr->samples);
 			
-			int pixel_index = (i + j * image.width) * 4;
-			image.data[pixel_index + 0] = (unsigned char)(pixel.m[0] * 255);
-			image.data[pixel_index + 1] = (unsigned char)(pixel.m[1] * 255);
-			image.data[pixel_index + 2] = (unsigned char)(pixel.m[2] * 255);
-			image.data[pixel_index + 3] = (unsigned char)(255);
+			int pixel_index = (i + j * rp_ptr->image.width) * 4;
+			rp_ptr->image.data[pixel_index + 0] = (unsigned char)(pixel.m[0] * 255);
+			rp_ptr->image.data[pixel_index + 1] = (unsigned char)(pixel.m[1] * 255);
+			rp_ptr->image.data[pixel_index + 2] = (unsigned char)(pixel.m[2] * 255);
+			rp_ptr->image.data[pixel_index + 3] = (unsigned char)(255);
 		}
 	}
 }
@@ -664,19 +654,7 @@ DWORD WINAPI RenderThread(LPVOID lpParameter)
 		if(cur->is_rendering)
 			continue;
 		cur->is_rendering = 1;
-		RenderSection(
-			cur->current.image,
-			cur->current.tree_ptr,
-			cur->current.lights_ptr,
-			cur->current.sky_color,
-			cur->current.x0, cur->current.y0,
-			cur->current.x1, cur->current.y1,
-			cur->current.aspect,
-			cur->current.scale_x, cur->current.scale_y,
-			cur->current.focal_length,
-			cur->current.samples,
-			cur->current.max_iterations,
-			&cur->current);
+		RenderSection(&cur->current);
 		printf("info: rendered section (%i, %i), (%i, %i).\n",
 			cur->current.x0, cur->current.y0, cur->current.x1, cur->current.y1);
 	}
@@ -694,6 +672,7 @@ void Render(
 	vecc_t scale_x, vecc_t scale_y,
 	vecc_t focal_length,
 	int samples,
+	int shadow_samples,
 	int max_iterations,
 	int num_threads)
 {
@@ -720,6 +699,7 @@ void Render(
 			rp->current.scale_y = scale_y;
 			rp->current.focal_length = focal_length;
 			rp->current.samples = samples;
+			rp->current.shadow_samples = shadow_samples;
 			rp->current.max_iterations = max_iterations;
 			if(last_ptr != NULL)
 				last_ptr->next_ptr = rp;
@@ -802,6 +782,8 @@ void MatSetVector(material_t *material_ptr, char *key, vector_t value)
 	HashTableGetOrInsert(material_ptr->table, key)->value.vector = value;
 }
 
+
+
 int main(int argc, char **argv)
 {
 
@@ -828,7 +810,7 @@ int main(int argc, char **argv)
 	current_material_ptr->table = HashTableNewDefault();
 	
 	vecc_t focal_length;
-	int samples = 1, section_size = 256, threads = 4, max_iterations = 10;
+	int samples = 1, shadow_samples = 1, section_size = 256, threads = 4, max_iterations = 10;
 	FILE *input;
 	input = stdin;
 	char out_file[255];
@@ -1228,6 +1210,15 @@ int main(int argc, char **argv)
 				continue;
 			}
 		}
+		else if(strcmp(cmd_str, "render_shadow_samples") == 0)
+		{
+			int count = fscanf(input, "%i", &shadow_samples);
+			if(count == 0)
+			{
+				fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
+				continue;
+			}
+		}
 		else if(strcmp(cmd_str, "render_section_size") == 0)
 		{
 			int count = fscanf(input, "%i", &section_size);
@@ -1335,6 +1326,7 @@ int main(int argc, char **argv)
 				scale_x, scale_y,
 				focal_length,
 				samples,
+				shadow_samples,
 				max_iterations,
 				threads);
 			

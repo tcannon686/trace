@@ -65,6 +65,7 @@ typedef struct render_params
 	vecc_t scale_x, scale_y;
 	vecc_t focal_length;
 	int samples;
+	int shadow_samples;
 	int max_iterations;
 } render_params_t;
 
@@ -78,14 +79,6 @@ typedef vector_t (*shader_t)(
 typedef struct material
 {
 	shader_t shader;
-	/*vector_t specular;
-	vector_t diffuse;
-	vector_t ambient;
-	vecc_t shininess;
-	vecc_t reflectiveness;
-	vecc_t alpha;
-	vecc_t ior;
-	int shadeless;*/
 	hashtable_t *table;
 } material_t;
 

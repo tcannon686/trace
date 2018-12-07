@@ -5,6 +5,7 @@
 /*.pdb
 /*.ilk
 /*.exe
+/*.ray
 /.vscode/
 /__pycache__/
 /Debug/

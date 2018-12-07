@@ -166,7 +166,7 @@ void HashTableFree(hashtable_t *table)
     {
         hashtable_entry_t *current = &table->entries[i];
         hashtable_entry_t *next_ptr;
-        int is_first = 0;
+        int is_first = 1;
         if(current->key[0] == 0)
             continue;
         

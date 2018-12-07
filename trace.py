@@ -387,9 +387,9 @@ class Trace:
     """
     def __init__(self,
         out_file = 'output.png', renderer_path = 'trace.exe',
-        width=640, height=480, fov=70 * math.pi / 180, render_samples = 4, render_threads = 4,
-        render_section_size=300, render_iterations=10, quality=16, sky_color = (0.25, 0.25, 0.25),
-        code_path=None):
+        width=640, height=480, fov=70 * math.pi / 180, render_samples = 4, render_shadow_samples=1,
+        render_threads = 4, render_section_size=300, render_iterations=10, quality=16,
+        sky_color = (0.25, 0.25, 0.25), code_path=None):
         """Creates a renderer from the following properties:
         renderer_path, out_file, width, height, fov, render_samples, render_threads,
         render_section_size, render_iterations, sky_color, code_path.
@@ -407,6 +407,7 @@ class Trace:
         self.height = height
         self.fov = fov
         self.render_samples = render_samples
+        self.render_shadow_samples = render_shadow_samples
         self.render_threads = render_threads
         self.render_section_size = render_section_size
         self.render_iterations = render_iterations
@@ -424,6 +425,7 @@ class Trace:
         output += ''.join([obj.toCode(self.quality) for obj in self.objects])
         output += 'cam_fov ' + str(self.fov) + '\n'
         output += 'render_samples ' + str(self.render_samples) + '\n'
+        output += 'render_shadow_samples ' + str(self.render_shadow_samples) + '\n'
         output += 'render_threads ' + str(self.render_threads) + '\n'
         output += 'render_section_size ' + str(self.render_section_size) + '\n'
         output += 'render_iterations ' + str(self.render_iterations) + '\n'
