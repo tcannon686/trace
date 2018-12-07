@@ -8,6 +8,7 @@
 #include "matrix.h"
 #include "trace.h"
 #include "lodepng.h"
+#include "hashtable.h"
 #include "shade.h"
 
 #define DEFAULT_OUTPUT "output.png"
@@ -804,7 +805,7 @@ int main(int argc, char **argv)
 	
 	if(argc > 1)
 		input = fopen(argv[1], "r");
-	
+
 	while(1)
 	{
 	
