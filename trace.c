@@ -6,9 +6,9 @@
 #include <time.h>
 
 #include "matrix.h"
+#include "hashtable.h"
 #include "trace.h"
 #include "lodepng.h"
-#include "hashtable.h"
 #include "shade.h"
 
 #define DEFAULT_OUTPUT "output.png"
@@ -418,6 +418,7 @@ void FreeMaterialList(mat_list_t *list_ptr) {
 	mat_list_t *next_ptr;
 	while(list_ptr != NULL) {
 		next_ptr = list_ptr->next_ptr;
+		HashTableFree(list_ptr->current.table);
 		free(list_ptr);
 		list_ptr = next_ptr;
 	}
@@ -771,6 +772,36 @@ void Render(
 	
 }
 
+vecc_t MatGetNumber(material_t *material_ptr, char *key)
+{
+	return HashTableGet(material_ptr->table, key)->value.real;
+}
+
+int MatGetInteger(material_t *material_ptr, char *key)
+{
+	return HashTableGet(material_ptr->table, key)->value.integer;
+}
+
+vector_t MatGetVector(material_t *material_ptr, char *key)
+{
+	return HashTableGet(material_ptr->table, key)->value.vector;
+}
+
+void MatSetNumber(material_t *material_ptr, char *key, vecc_t value)
+{
+	HashTableGetOrInsert(material_ptr->table, key)->value.real = value;
+}
+
+void MatSetInteger(material_t *material_ptr, char *key, int value)
+{
+	HashTableGetOrInsert(material_ptr->table, key)->value.integer = value;
+}
+
+void MatSetVector(material_t *material_ptr, char *key, vector_t value)
+{
+	HashTableGetOrInsert(material_ptr->table, key)->value.vector = value;
+}
+
 int main(int argc, char **argv)
 {
 
@@ -793,6 +824,8 @@ int main(int argc, char **argv)
 	memset(triangles_ptr, 0, sizeof(tri_list_t));
 	memset(materials_ptr, 0, sizeof(mat_list_t));
 	memset(lights_ptr, 0, sizeof(light_list_t));
+
+	current_material_ptr->table = HashTableNewDefault();
 	
 	vecc_t focal_length;
 	int samples = 1, section_size = 256, threads = 4, max_iterations = 10;
@@ -948,7 +981,8 @@ int main(int argc, char **argv)
 				current_ptr = current_ptr->next_ptr;
 			current_material_ptr = &(current_ptr->current);
 		}
-		else if(strcmp(cmd_str, "mat_diffuse") == 0)
+		// Pre-hashtable implementation
+		/*else if(strcmp(cmd_str, "mat_diffuse") == 0)
 		{
 			vecc_t x, y, z;
 			
@@ -1048,6 +1082,54 @@ int main(int argc, char **argv)
 				continue;
 			}
 			material_ptr->current.shadeless = x;
+		}*/
+		else if(strcmp(cmd_str, "mat_set_number") == 0)
+		{
+			char key[32];
+			vecc_t value;
+			int count = fscanf(input, "%s %lf", key, &value);
+			if(count == 0)
+			{
+				fprintf(stderr, "error: 'mat_set_number' not enough arguments.\n");
+				continue;
+			}
+			MatSetNumber(&(material_ptr->current), key, value);
+		}
+		else if(strcmp(cmd_str, "mat_set_integer") == 0)
+		{
+			char key[32];
+			int value;
+			int count = fscanf(input, "%s %i", key, &value);
+			if(count == 0)
+			{
+				fprintf(stderr, "error: 'mat_set_integer' not enough arguments.\n");
+				continue;
+			}
+			MatSetInteger(&(material_ptr->current), key, value);
+		}
+		else if(strcmp(cmd_str, "mat_set_vector") == 0)
+		{
+			char key[32];
+			vector_t value;
+			int count = fscanf(input, "%s %lf %lf %lf", key, &value.x, &value.y, &value.z);
+			if(count == 0)
+			{
+				fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
+				continue;
+			}
+			MatSetVector(&(material_ptr->current), key, value);
+		}
+		else if(strcmp(cmd_str, "mat_shader") == 0)
+		{
+			char key[32];
+			int count = fscanf(input, "%s", key);
+			if(count == 0)
+			{
+				fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
+				continue;
+			}
+			if(strcmp(key, "phong"))
+				material_ptr->current.shader = PhongShader;
 		}
 		else if(strcmp(cmd_str, "light_position") == 0)
 		{
@@ -1108,6 +1190,7 @@ int main(int argc, char **argv)
 			material_ptr->next_ptr->last_ptr = material_ptr;
 			material_ptr = material_ptr->next_ptr;
 			material_ptr->current.shader = PhongShader;
+			material_ptr->current.table = HashTableNewDefault();
 			current_material_ptr = &material_ptr->current;
 		}
 		else if(strcmp(cmd_str, "make_light") == 0)

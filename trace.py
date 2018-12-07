@@ -73,16 +73,16 @@ class Material(Traceable):
         
     def toCode(self, quality):
         output = ''
-        output += 'mat_diffuse ' + str(self.diffuse[0]) + ' ' + str(self.diffuse[1]) + ' ' + str(self.diffuse[2]) + '\n'
-        output += 'mat_specular ' + str(self.specular[0]) + ' ' + str(self.specular[1]) + ' ' + str(self.specular[2]) + '\n'
-        output += 'mat_shininess ' + str(self.shininess) + '\n'
-        output += 'mat_reflectiveness ' + str(self.reflectiveness) + '\n'
-        output += 'mat_alpha ' + str(self.alpha) + '\n'
-        output += 'mat_ior ' + str(self.ior) + '\n'
+        output += 'mat_set_vector diffuse ' + str(self.diffuse[0]) + ' ' + str(self.diffuse[1]) + ' ' + str(self.diffuse[2]) + '\n'
+        output += 'mat_set_vector specular ' + str(self.specular[0]) + ' ' + str(self.specular[1]) + ' ' + str(self.specular[2]) + '\n'
+        output += 'mat_set_number shininess ' + str(self.shininess) + '\n'
+        output += 'mat_set_number reflectiveness ' + str(self.reflectiveness) + '\n'
+        output += 'mat_set_number alpha ' + str(self.alpha) + '\n'
+        output += 'mat_set_number ior ' + str(self.ior) + '\n'
         if self.shadeless:
-            output += 'mat_shadeless 1\n'
+            output += 'mat_set_integer shadeless 1\n'
         else:
-            output += 'mat_shadeless 0\n'
+            output += 'mat_set_integer shadeless 0\n'
         output += 'make_material\n'
         return output
 

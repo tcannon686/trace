@@ -1,4 +1,7 @@
 
+#ifndef TRACE_H
+#define TRACE_H
+
 struct kd_tree;
 typedef struct kd_tree kd_tree_t;
 
@@ -75,14 +78,15 @@ typedef vector_t (*shader_t)(
 typedef struct material
 {
 	shader_t shader;
-	vector_t specular;
+	/*vector_t specular;
 	vector_t diffuse;
 	vector_t ambient;
 	vecc_t shininess;
 	vecc_t reflectiveness;
 	vecc_t alpha;
 	vecc_t ior;
-	int shadeless;
+	int shadeless;*/
+	hashtable_t *table;
 } material_t;
 
 struct mat_list;
@@ -215,3 +219,12 @@ void FreeTriList(tri_list_t *list_ptr);
 void FreeTree(kd_tree_t *tree_ptr);
 void FreeMaterialList(mat_list_t *list_ptr);
 void FreeLightList(light_list_t *list_ptr);
+
+vecc_t MatGetNumber(material_t *material_ptr, char *name);
+void MatSetNumber(material_t *material_ptr, char *name, vecc_t value);
+int MatGetInteger(material_t *material_ptr, char *name);
+void MatSetInteger(material_t *material_ptr, char *name, int value);
+vector_t MatGetVector(material_t *material_ptr, char *name);
+void MatSetVector(material_t *material_ptr, char *name, vector_t value);
+
+#endif

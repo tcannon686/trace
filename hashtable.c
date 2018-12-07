@@ -1,15 +1,16 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "matrix.h"
 #include "hashtable.h"
 
 int HashTableHash(char *key)
 {
     int hash = 7;
     for (int i = 0; i < strlen(key); i++) {
-        hash = hash*31 + key[i];
+        hash = hash * 31 + key[i];
     }
-    return hash;
+    return abs(hash);
 }
 
 hashtable_t *HashTableNew(int capacity, double max_load_factor)
@@ -43,19 +44,6 @@ hashtable_entry_t *HashTableGet(hashtable_t *table, char *key)
     return NULL;
 }
 
-void *HashTableGetValue(hashtable_t *table, char *key)
-{
-    hashtable_entry_t *entry_ptr = &table->entries[HashTableHash(key) % table->capacity];
-    if(entry_ptr->key[0] == 0)
-        return NULL;
-    while(entry_ptr != NULL) {
-        if(strcmp(key, entry_ptr->key) == 0)
-            return entry_ptr->value_ptr;
-        entry_ptr = entry_ptr->next_ptr;
-    }
-    return NULL;
-}
-
 hashtable_entry_t *HashTableGetOrInsert(hashtable_t *table, char *key)
 {
     int index = HashTableHash(key) % table->capacity;
@@ -73,7 +61,7 @@ hashtable_entry_t *HashTableGetOrInsert(hashtable_t *table, char *key)
     while(entry_ptr != NULL)
     {
         if(strcmp(key, entry_ptr->key) == 0)
-            return entry_ptr->value_ptr;
+            return entry_ptr;
         if(entry_ptr->next_ptr == NULL) {
             entry_ptr->next_ptr = (hashtable_entry_t *) malloc(sizeof(hashtable_entry_t));
             table->count ++;
@@ -88,9 +76,9 @@ hashtable_entry_t *HashTableGetOrInsert(hashtable_t *table, char *key)
     return NULL;
 }
 
-void HashTableSet(hashtable_entry_t *entry, void *value)
+void HashTableSet(hashtable_entry_t *entry, hashtable_value_t value)
 {
-    entry->value_ptr = value;
+    entry->value = value;
 }
 
 hashtable_t *HashTableCopy(hashtable_t *table, int new_capacity)
@@ -108,7 +96,7 @@ hashtable_t *HashTableCopy(hashtable_t *table, int new_capacity)
         {
             next_ptr = current->next_ptr;
             hashtable_entry_t *entry = HashTableGetOrInsert(ret, current->key);
-            entry->value_ptr = current->value_ptr;
+            entry->value = current->value;
             if(!is_first)
                 free(current);
             else
