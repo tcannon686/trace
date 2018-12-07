@@ -782,614 +782,623 @@ void MatSetVector(material_t *material_ptr, char *key, vector_t value)
 	HashTableGetOrInsert(material_ptr->table, key)->value.vector = value;
 }
 
+int CmdQuit(render_settings_t *rs)
+{
+	return 0;
+}
+
+int CmdVertex(render_settings_t *rs)
+{
+	vecc_t x, y, z;
+	vector_t vertex;
+
+	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'vertex' not enough arguments\n");
+		return 1;
+	}
+
+	vertex = vec4(x, y, z, 1);
+
+	MatrixTimesVectorP(
+		&rs->triangle_ptr->current.v[rs->current_point],
+		rs->transform_ptr,
+		&vertex);
+
+	rs->current_point++;
+	if (rs->current_point > 2)
+	{
+		vector_t normal;
+		normal = VectorNormalize(VectorCrossVector(
+			VectorMinusVector(rs->triangle_ptr->current.v2, rs->triangle_ptr->current.v0),
+			VectorMinusVector(rs->triangle_ptr->current.v1, rs->triangle_ptr->current.v0)));
+		rs->triangle_ptr->current.normal = normal;
+		rs->triangle_ptr->current.ba = VectorMinusVector(
+			rs->triangle_ptr->current.b,
+			rs->triangle_ptr->current.a);
+		rs->triangle_ptr->current.cb = VectorMinusVector(
+			rs->triangle_ptr->current.c,
+			rs->triangle_ptr->current.b);
+		rs->triangle_ptr->current.ac = VectorMinusVector(
+			rs->triangle_ptr->current.a,
+			rs->triangle_ptr->current.c);
+		rs->triangle_ptr->current.area = VectorMagnitude(VectorCrossVector(
+			rs->triangle_ptr->current.ba,
+			rs->triangle_ptr->current.cb));
+		/*if(current_normal == 0)
+		{
+		triangle_ptr->current.n[0] = normal;
+		triangle_ptr->current.n[1] = normal;
+		triangle_ptr->current.n[2] = normal;
+		}*/
+
+		rs->triangle_ptr->current.origin =
+			VectorTimesScalar(
+				VectorPlusVector(rs->triangle_ptr->current.v0,
+					VectorPlusVector(rs->triangle_ptr->current.v1, rs->triangle_ptr->current.v2)),
+				1.0 / 3.0);
+		rs->triangle_ptr->current.material_ptr = rs->current_material_ptr;
+		rs->current_point = 0;
+	}
+	return 1;
+}
+
+int CmdMakeFace(render_settings_t *rs)
+{
+	if (rs->triangle_ptr->current.area != 0)
+	{
+		if (rs->triangle_ptr->last_ptr != NULL)
+			rs->triangle_ptr->last_ptr->next_ptr = rs->triangle_ptr;
+		rs->triangle_ptr->next_ptr = malloc(sizeof(tri_list_t));
+		memset(rs->triangle_ptr->next_ptr, 0, sizeof(tri_list_t));
+		rs->triangle_ptr->next_ptr->last_ptr = rs->triangle_ptr;
+		rs->triangle_ptr = rs->triangle_ptr->next_ptr;
+		rs->triangle_ptr->last_ptr->next_ptr = NULL;
+	}
+	return 1;
+}
+
+int CmdNormal(render_settings_t *rs)
+{
+	vecc_t x, y, z;
+	vector_t normal;
+
+	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'normal' not enough arguments.\n");
+		return 1;
+	}
+	normal = vec4(x, y, z, 0);
+
+	MatrixTimesVectorP(
+		&rs->triangle_ptr->current.n[rs->current_normal],
+		rs->transform_ptr,
+		&normal);
+
+	normal = VectorNormalize(normal);
+	rs->current_normal++;
+
+	if (rs->current_normal > 2)
+		rs->current_normal = 0;
+	return 1;
+}
+
+int CmdSky(render_settings_t *rs)
+{
+	vecc_t x, y, z;
+
+	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'sky' not enough arguments.\n");
+		return 1;
+	}
+
+	rs->sky = vec4(x, y, z, 1);
+	return 1;
+}
+
+int CmdCamFov(render_settings_t *rs)
+{
+	vecc_t fov = 3.14159265 / 2;
+
+	int count = fscanf(rs->input, "%lf", &fov);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'cam_fov' not enough arguments.\n");
+		return 1;
+	}
+
+	rs->focal_length = 1.0 / (2.0 * tan(fov / 4.0));
+	return 1;
+}
+
+int CmdMatIndex(render_settings_t *rs)
+{
+	int index = 0;
+	mat_list_t *current_ptr = rs->materials_ptr;
+	int count = fscanf(rs->input, "%i", &index);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'mat_index' not enough arguments.\n");
+		return 1;
+	}
+	for (int i = 0; i < index; i++)
+		current_ptr = current_ptr->next_ptr;
+	rs->current_material_ptr = &(current_ptr->current);
+	return 1;
+}
+
+int CmdMatSetNumber(render_settings_t *rs)
+{
+	char key[32];
+	vecc_t value;
+	int count = fscanf(rs->input, "%s %lf", key, &value);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'mat_set_number' not enough arguments.\n");
+		return 1;
+	}
+	MatSetNumber(&(rs->material_ptr->current), key, value);
+	return 1;
+}
+
+int CmdMatSetInteger(render_settings_t *rs)
+{
+	char key[32];
+	int value;
+	int count = fscanf(rs->input, "%s %i", key, &value);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'mat_set_integer' not enough arguments.\n");
+		return 1;
+	}
+	MatSetInteger(&(rs->material_ptr->current), key, value);
+	return 1;
+}
+
+int CmdMatSetVector(render_settings_t *rs)
+{
+	char key[32];
+	vector_t value;
+	int count = fscanf(rs->input, "%s %lf %lf %lf", key, &value.x, &value.y, &value.z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
+		return 1;
+	}
+	MatSetVector(&(rs->material_ptr->current), key, value);
+	return 1;
+}
+
+int CmdMatShader(render_settings_t *rs)
+{
+	char key[32];
+	int count = fscanf(rs->input, "%s", key);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
+		return 1;
+	}
+	if (strcmp(key, "phong"))
+		rs->material_ptr->current.shader = PhongShader;
+	return 1;
+}
+
+int CmdLightPosition(render_settings_t *rs)
+{
+	vecc_t x, y, z;
+	vector_t position;
+	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'light_position' not enough arguments.\n");
+		return 1;
+	}
+	position = vec4(x, y, z, 1);
+	MatrixTimesVectorP(&rs->light_ptr->current.position, rs->transform_ptr, &position);
+	return 1;
+}
+
+int CmdLightColor(render_settings_t *rs)
+{
+	vecc_t x, y, z;
+
+	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'light_color' not enough arguments.\n");
+		return 1;
+	}
+
+	rs->light_ptr->current.color = vec3(x, y, z);
+	return 1;
+}
+
+int CmdLightDistance(render_settings_t *rs)
+{
+	vecc_t x;
+
+	int count = fscanf(rs->input, "%lf", &x);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'light_distance' not enough arguments.\n");
+		return 1;
+	}
+
+	rs->light_ptr->current.distance = x;
+	return 1;
+}
+
+int CmdLightEnergy(render_settings_t *rs)
+{
+	vecc_t x;
+
+	int count = fscanf(rs->input, "%lf", &x);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'light_energy' not enough arguments.\n");
+		return 1;
+	}
+
+	rs->light_ptr->current.energy = x;
+	return 1;
+}
+
+int CmdMakeMaterial(render_settings_t *rs)
+{
+	rs->material_ptr->next_ptr = malloc(sizeof(mat_list_t));
+	memset(rs->material_ptr->next_ptr, 0, sizeof(mat_list_t));
+	rs->material_ptr->next_ptr->last_ptr = rs->material_ptr;
+	rs->material_ptr = rs->material_ptr->next_ptr;
+	rs->material_ptr->current.shader = PhongShader;
+	rs->material_ptr->current.table = HashTableNewDefault();
+	rs->current_material_ptr = &rs->material_ptr->current;
+	return 1;
+}
+
+int CmdMakeLight(render_settings_t *rs)
+{
+	rs->light_ptr->next_ptr = malloc(sizeof(light_list_t));
+	memset(rs->light_ptr->next_ptr, 0, sizeof(light_list_t));
+	rs->light_ptr->next_ptr->last_ptr = rs->light_ptr;
+	rs->light_ptr = rs->light_ptr->next_ptr;
+	return 1;
+}
+
+int CmdInFile(render_settings_t *rs)
+{
+	char file[255];
+	fscanf(rs->input, "%s", file);
+	rs->input = fopen(file, "r");
+	if (rs->input == NULL) {
+		printf("error: file not found.\n");
+		rs->input = stdin;
+	}
+	return 1;
+}
+
+int CmdOutFile(render_settings_t *rs)
+{
+	fscanf(rs->input, "%s", rs->out_file);
+	return 1;
+}
+
+int CmdInStdIn(render_settings_t *rs)
+{
+	rs->input = stdin;
+	return 1;
+}
+
+int CmdRenderSamples(render_settings_t *rs)
+{
+	int count = fscanf(rs->input, "%i", &rs->samples);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
+		return 1;
+	}
+	return 1;
+}
+
+int CmdRenderShadowSamples(render_settings_t *rs)
+{
+	int count = fscanf(rs->input, "%i", &rs->shadow_samples);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
+		return 1;
+	}
+	return 1;
+}
+
+int CmdRenderSectionSize(render_settings_t *rs)
+{
+	int count = fscanf(rs->input, "%i", &rs->section_size);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'render_section_size' not enough arguments.\n");
+		return 1;
+	}
+	return 1;
+}
+
+int CmdRenderThreads(render_settings_t *rs)
+{
+	int count = fscanf(rs->input, "%i", &rs->threads);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'render_threads' not enough arguments.\n");
+		return 1;
+	}
+	return 1;
+}
+
+int CmdRenderIterations(render_settings_t *rs)
+{
+	int count = fscanf(rs->input, "%i", &rs->max_iterations);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'render_iterations' not enough arguments.\n");
+		return 1;
+	}
+	return 1;
+}
+
+int CmdRender(render_settings_t *rs)
+{
+	unsigned int width;
+	unsigned int height;
+	image_t image;
+	int count = fscanf(rs->input, "%u %u", &width, &height);
+	if (count < 2)
+	{
+		fprintf(stderr, "error: 'render' not enough arguments.\n");
+		return 1;
+	}
+
+	vecc_t aspect = (vecc_t)height / (vecc_t)width;
+	vecc_t scale_x = 2 / (vecc_t)width;
+	vecc_t scale_y = -aspect * 2 / (vecc_t)height;
+	image.width = width;
+	image.height = height;
+	image.data = (unsigned char *)malloc(width * height * 4);
+
+	clock_t start_time, end_time;
+	float elapsed_secs;
+
+	start_time = clock();
+
+	printf("info: generating tree\n");
+	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0);
+	end_time = clock();
+	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
+	start_time = end_time;
+	printf("info: elapsed time %f seconds.\n", elapsed_secs);
+	printf("info: rendering\n");
+	/*for(int i = 0; i < width; i ++)
+	{
+	for(int j = 0; j < height; j ++)
+	{
+	int index = (i + j * width) * 4;
+	vector_t average = vec4(0, 0, 0, 0);
+	for(int k = 0; k < samples; k ++)
+	{
+	for(int l = 0; l < samples; l ++)
+	{
+	vecc_t x = (vecc_t)(i - (int)width / 2) * scale_x
+	+ k * scale_x / samples;
+	vecc_t y = (vecc_t)((int)height / 2 - j) * scale_y
+	+ l * scale_y / samples;
+	vecc_t z = -focal_length;
+
+	ray_t ray = NewRay(vec3(0, 0, 0), vec3(x, y, z));
+
+	hit_t result = RayTree(ray, tree_ptr);
+	if(result.t > 0)
+	{
+	vector_t color = result.material_ptr->shader(result, lights_ptr);
+	color = VectorClamp(color);
+	average = VectorPlusVector(average, color);
+	}
+	else
+	{
+	average = VectorPlusVector(average, sky);
+	}
+	}
+	}
+	average = VectorTimesScalar(average, 1.0f / (samples * samples));
+	image[index + 0] = (unsigned char) (average.x * 255);
+	image[index + 1] = (unsigned char) (average.y * 255);
+	image[index + 2] = (unsigned char) (average.z * 255);
+	image[index + 3] = (unsigned char) (255);
+	}
+	} */
+
+	Render(
+		image,
+		tree_ptr,
+		rs->lights_ptr,
+		rs->sky,
+		rs->section_size,
+		aspect,
+		scale_x, scale_y,
+		rs->focal_length,
+		rs->samples,
+		rs->shadow_samples,
+		rs->max_iterations,
+		rs->threads);
+
+	end_time = clock();
+	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
+	printf("info: elapsed time %f seconds.\n", elapsed_secs);
+
+	printf("info: saving file '%s'.\n", rs->out_file);
+	unsigned error = lodepng_encode32_file(rs->out_file, image.data, width, height);
+
+	/*if there's an error, display it*/
+	if (error)
+		printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
+	else
+		printf("okay\n");
+	FreeTree(tree_ptr);
+	return 1;
+}
+
+int CmdPrintTriangles(render_settings_t *rs)
+{
+	printf("triangles: \n");
+	PrintTriangles(rs->triangles_ptr);
+	return 1;
+}
+
+int CmdTransformPop(render_settings_t *rs)
+{
+	rs->transform_ptr--;
+	return 1;
+}
+
+int CmdTransformPush(render_settings_t *rs)
+{
+	rs->transform_ptr++;
+	memcpy(rs->transform_ptr, rs->transform_ptr - 1, sizeof(matrix_t));
+	return 1;
+}
+
+int CmdTransformTranslate(render_settings_t *rs)
+{
+	vector_t t;
+	matrix_t translate;
+	fscanf(rs->input, "%lf %lf %lf", &t.x, &t.y, &t.z);
+	translate = NewTranslateMatrix(t);
+	*rs->transform_ptr = MatrixTimesMatrix(*rs->transform_ptr, translate);
+	return 1;
+}
+
+int CmdTransformScale(render_settings_t *rs)
+{
+	vector_t t;
+	matrix_t scale;
+	fscanf(rs->input, "%lf %lf %lf", &t.x, &t.y, &t.z);
+	scale = NewScaleMatrix(t);
+	*rs->transform_ptr = MatrixTimesMatrix(*rs->transform_ptr, scale);
+	return 1;
+}
+
+int CmdTransformRotate(render_settings_t *rs)
+{
+	vecc_t angle;
+	vector_t t;
+	matrix_t rotate;
+	fscanf(rs->input, "%lf, %lf %lf %lf", &angle, &t.x, &t.y, &t.z);
+	rotate = NewRotateMatrix(angle, t);
+	*rs->transform_ptr = MatrixTimesMatrix(*rs->transform_ptr, rotate);
+	return 1;
+}
+
+void SetCommand(hashtable_t *table, char *key, cmd_t cmd)
+{
+	hashtable_value_t value;
+	value.pointer = (void *)cmd;
+	HashTableSet(HashTableGetOrInsert(table, key), value);
+}
 
 
 int main(int argc, char **argv)
 {
+	hashtable_t *table_cmds = HashTableNewDefault();
+	SetCommand(table_cmds, "quit", CmdQuit);
+	SetCommand(table_cmds, "vertex", CmdVertex);
+	SetCommand(table_cmds, "normal", CmdNormal);
+	SetCommand(table_cmds, "make_face", CmdMakeFace);
+	SetCommand(table_cmds, "sky", CmdSky);
+	SetCommand(table_cmds, "cam_fov", CmdCamFov);
+	SetCommand(table_cmds, "mat_index", CmdMatIndex);
+	SetCommand(table_cmds, "mat_set_number", CmdMatSetNumber);
+	SetCommand(table_cmds, "mat_set_integer", CmdMatSetInteger);
+	SetCommand(table_cmds, "mat_set_vector", CmdMatSetVector);
+	SetCommand(table_cmds, "mat_shader", CmdMatShader);
+	SetCommand(table_cmds, "light_position", CmdLightPosition);
+	SetCommand(table_cmds, "light_color", CmdLightColor);
+	SetCommand(table_cmds, "light_energy", CmdLightEnergy);
+	SetCommand(table_cmds, "light_distance", CmdLightDistance);
+	SetCommand(table_cmds, "make_material", CmdMakeMaterial);
+	SetCommand(table_cmds, "make_light", CmdMakeLight);
+	SetCommand(table_cmds, "in_file", CmdInFile);
+	SetCommand(table_cmds, "out_file", CmdOutFile);
+	SetCommand(table_cmds, "in_stdin", CmdInStdIn);
+	SetCommand(table_cmds, "render_samples", CmdRenderSamples);
+	SetCommand(table_cmds, "render_shadow_samples", CmdRenderShadowSamples);
+	SetCommand(table_cmds, "render_section_size", CmdRenderSectionSize);
+	SetCommand(table_cmds, "render_threads", CmdRenderThreads);
+	SetCommand(table_cmds, "render_iterations", CmdRenderIterations);
+	SetCommand(table_cmds, "render", CmdRender);
+	SetCommand(table_cmds, "print_triangles", CmdPrintTriangles);
+	SetCommand(table_cmds, "transform_pop", CmdTransformPop);
+	SetCommand(table_cmds, "transform_push", CmdTransformPush);
+	SetCommand(table_cmds, "transform_translate", CmdTransformTranslate);
+	SetCommand(table_cmds, "transform_scale", CmdTransformScale);
+	SetCommand(table_cmds, "transform_rotate", CmdTransformRotate);
+	
+	render_settings_t render_settings;
+	render_settings_t *rs = &render_settings;
+	rs->transform_ptr = rs->transform_stack;
+	IdentityMatrixP(rs->transform_ptr);
+	
+	rs->triangles_ptr = (tri_list_t *)malloc(sizeof(tri_list_t));
+	rs->triangle_ptr = rs->triangles_ptr;
+	rs->materials_ptr = (mat_list_t *)malloc(sizeof(mat_list_t));
+	rs->material_ptr = rs->materials_ptr;
+	rs->current_material_ptr = &rs->material_ptr->current;
+	rs->lights_ptr = (light_list_t *)malloc(sizeof(light_list_t));
+	rs->light_ptr = rs->lights_ptr;
+	rs->current_point = 0;
+	rs->current_normal = 0;
 
-	matrix_t transform_stack[32];
-	matrix_t *transform_ptr = transform_stack;
-	IdentityMatrixP(transform_ptr);
-	
-	vector_t sky;
-	
-	tri_list_t *triangles_ptr = (tri_list_t *)malloc(sizeof(tri_list_t));
-	tri_list_t *triangle_ptr = triangles_ptr;
-	mat_list_t *materials_ptr = (mat_list_t *)malloc(sizeof(mat_list_t));
-	mat_list_t *material_ptr = materials_ptr;
-	material_t *current_material_ptr = &material_ptr->current;
-	light_list_t *lights_ptr = (light_list_t *)malloc(sizeof(light_list_t));
-	light_list_t *light_ptr = lights_ptr;
-	int current_point = 0,
-		current_normal = 0;
+	memset(rs->triangles_ptr, 0, sizeof(tri_list_t));
+	memset(rs->materials_ptr, 0, sizeof(mat_list_t));
+	memset(rs->lights_ptr, 0, sizeof(light_list_t));
 
-	memset(triangles_ptr, 0, sizeof(tri_list_t));
-	memset(materials_ptr, 0, sizeof(mat_list_t));
-	memset(lights_ptr, 0, sizeof(light_list_t));
-
-	current_material_ptr->table = HashTableNewDefault();
+	rs->current_material_ptr->table = HashTableNewDefault();
+	rs->focal_length = 1;
+	rs->samples = 1;
+	rs->shadow_samples = 1;
+	rs->section_size = 256;
+	rs->threads = 4;
+	rs->max_iterations = 10;
+	rs->input = stdin;
+	memcpy(rs->out_file, DEFAULT_OUTPUT, sizeof(DEFAULT_OUTPUT));
 	
-	vecc_t focal_length;
-	int samples = 1, shadow_samples = 1, section_size = 256, threads = 4, max_iterations = 10;
-	FILE *input;
-	input = stdin;
-	char out_file[255];
-	memcpy(out_file, DEFAULT_OUTPUT, sizeof(DEFAULT_OUTPUT));
-	
-	material_ptr->current.shader = PhongShader;
+	rs->material_ptr->current.shader = PhongShader;
 	
 	if(argc > 1)
-		input = fopen(argv[1], "r");
+		rs->input = fopen(argv[1], "r");
 
 	while(1)
 	{
 	
 		// INPUT
 		char cmd_str[64];
-		while(!fscanf(input, "%s", cmd_str));
-		if(strcmp(cmd_str, "quit") == 0)
+		while(!fscanf(rs->input, "%s", cmd_str));
+		hashtable_entry_t *entry = HashTableGet(table_cmds, cmd_str);
+		if (entry != NULL)
 		{
-			break;
+			cmd_t cmd = (cmd_t)entry->value.pointer;
+			if (cmd(rs) == 0)
+				break;
 		}
-		else if(strcmp(cmd_str, "vertex") == 0)
+		else
 		{
-			vecc_t x, y, z;
-			vector_t vertex;
-			
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'vertex' not enough arguments\n");
-				continue;
-			}
-			
-			vertex = vec4(x, y, z, 1);
-			
-			MatrixTimesVectorP(
-				&triangle_ptr->current.v[current_point],
-				transform_ptr,
-				&vertex);
-			
-			current_point ++;
-			if(current_point > 2)
-			{
-				vector_t normal;
-				normal = VectorNormalize(VectorCrossVector(
-					VectorMinusVector(triangle_ptr->current.v2, triangle_ptr->current.v0),
-					VectorMinusVector(triangle_ptr->current.v1, triangle_ptr->current.v0)));
-				triangle_ptr->current.normal = normal;
-				triangle_ptr->current.ba = VectorMinusVector(
-					triangle_ptr->current.b,
-					triangle_ptr->current.a);
-				triangle_ptr->current.cb = VectorMinusVector(
-					triangle_ptr->current.c,
-					triangle_ptr->current.b);
-				triangle_ptr->current.ac = VectorMinusVector(
-					triangle_ptr->current.a,
-					triangle_ptr->current.c);
-				triangle_ptr->current.area = VectorMagnitude(VectorCrossVector(
-					triangle_ptr->current.ba,
-					triangle_ptr->current.cb));
-				/*if(current_normal == 0)
-				{
-					triangle_ptr->current.n[0] = normal;
-					triangle_ptr->current.n[1] = normal;
-					triangle_ptr->current.n[2] = normal;
-				}*/
-				
-				triangle_ptr->current.origin = 
-					VectorTimesScalar(
-						VectorPlusVector(triangle_ptr->current.v0,
-							VectorPlusVector(triangle_ptr->current.v1, triangle_ptr->current.v2)),
-						1.0 / 3.0);
-				triangle_ptr->current.material_ptr = current_material_ptr;
-				current_point = 0;
-			}
+			printf("error: unknown command \"%s\"\n", cmd_str);
 		}
-		else if(strcmp(cmd_str, "make_face") == 0)
-		{
-			if(triangle_ptr->current.area != 0)
-			{
-				if(triangle_ptr->last_ptr != NULL)
-					triangle_ptr->last_ptr->next_ptr = triangle_ptr;
-				triangle_ptr->next_ptr = malloc(sizeof(tri_list_t));
-				memset(triangle_ptr->next_ptr, 0, sizeof(tri_list_t));
-				triangle_ptr->next_ptr->last_ptr = triangle_ptr;
-				triangle_ptr = triangle_ptr->next_ptr;
-				triangle_ptr->last_ptr->next_ptr = NULL;
-			}
-		}
-		else if(strcmp(cmd_str, "normal") == 0)
-		{
-			vecc_t x, y, z;
-			vector_t normal;
-
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'normal' not enough arguments.\n");
-				continue;
-			}
-			normal = vec4(x, y, z, 0);
-
-			MatrixTimesVectorP(
-				&triangle_ptr->current.n[current_normal],
-				transform_ptr,
-				&normal);
-			
-			normal = VectorNormalize(normal);
-			current_normal ++;
-			
-			if(current_normal > 2)
-				current_normal = 0;
-		}
-		else if(strcmp(cmd_str, "sky") == 0)
-		{
-			vecc_t x, y, z;
-			
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'sky' not enough arguments.\n");
-				continue;
-			}
-			
-			sky = vec4(x, y, z, 1);
-		}
-		else if(strcmp(cmd_str, "cam_fov") == 0)
-		{
-			vecc_t fov = 3.14159265 / 2;
-			
-			int count = fscanf(input, "%lf", &fov);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'cam_fov' not enough arguments.\n");
-				continue;
-			}
-			
-			focal_length = 1.0 / (2.0 * tan(fov / 4.0));
-		}
-		else if(strcmp(cmd_str, "mat_index") == 0)
-		{
-			int index = 0;
-			mat_list_t *current_ptr = materials_ptr;
-			int count = fscanf(input, "%i", &index);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_index' not enough arguments.\n");
-				continue;
-			}
-			for(int i = 0; i < index; i ++)
-				current_ptr = current_ptr->next_ptr;
-			current_material_ptr = &(current_ptr->current);
-		}
-		// Pre-hashtable implementation
-		/*else if(strcmp(cmd_str, "mat_diffuse") == 0)
-		{
-			vecc_t x, y, z;
-			
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_diffuse' not enough arguments.\n");
-				continue;
-			}
-			
-			material_ptr->current.diffuse = vec3(x, y, z);
-		}
-		else if(strcmp(cmd_str, "mat_specular") == 0)
-		{
-			vecc_t x, y, z;
-			
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_specular' not enough arguments.\n");
-				continue;
-			}
-			
-			material_ptr->current.specular = vec3(x, y, z);
-		}
-		else if(strcmp(cmd_str, "mat_ambient") == 0)
-		{
-			vecc_t x, y, z;
-			
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_ambient' not enough arguments.\n");
-				continue;
-			}
-			
-			material_ptr->current.ambient = vec3(x, y, z);
-		}
-		else if(strcmp(cmd_str, "mat_shininess") == 0)
-		{
-			vecc_t x;
-			
-			int count = fscanf(input, "%lf", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_shininess' not enough arguments.\n");
-				continue;
-			}
-			
-			material_ptr->current.shininess = x;
-		}
-		else if(strcmp(cmd_str, "mat_reflectiveness") == 0)
-		{
-			vecc_t x;
-			
-			int count = fscanf(input, "%lf", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_reflectiveness' not enough arguments.\n");
-				continue;
-			}
-			
-			material_ptr->current.reflectiveness = x;
-		}
-		else if(strcmp(cmd_str, "mat_alpha") == 0)
-		{
-			vecc_t x;
-			
-			int count = fscanf(input, "%lf", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_alpha' not enough arguments.\n");
-				continue;
-			}
-			material_ptr->current.alpha = x;
-		}
-		else if(strcmp(cmd_str, "mat_ior") == 0)
-		{
-			vecc_t x;
-			
-			int count = fscanf(input, "%lf", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_ior' not enough arguments.\n");
-				continue;
-			}
-			material_ptr->current.ior = x;
-		}
-		else if(strcmp(cmd_str, "mat_shadeless") == 0)
-		{
-			int x;
-			
-			int count = fscanf(input, "%i", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_shadeless' not enough arguments.\n");
-				continue;
-			}
-			material_ptr->current.shadeless = x;
-		}*/
-		else if(strcmp(cmd_str, "mat_set_number") == 0)
-		{
-			char key[32];
-			vecc_t value;
-			int count = fscanf(input, "%s %lf", key, &value);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_set_number' not enough arguments.\n");
-				continue;
-			}
-			MatSetNumber(&(material_ptr->current), key, value);
-		}
-		else if(strcmp(cmd_str, "mat_set_integer") == 0)
-		{
-			char key[32];
-			int value;
-			int count = fscanf(input, "%s %i", key, &value);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_set_integer' not enough arguments.\n");
-				continue;
-			}
-			MatSetInteger(&(material_ptr->current), key, value);
-		}
-		else if(strcmp(cmd_str, "mat_set_vector") == 0)
-		{
-			char key[32];
-			vector_t value;
-			int count = fscanf(input, "%s %lf %lf %lf", key, &value.x, &value.y, &value.z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
-				continue;
-			}
-			MatSetVector(&(material_ptr->current), key, value);
-		}
-		else if(strcmp(cmd_str, "mat_shader") == 0)
-		{
-			char key[32];
-			int count = fscanf(input, "%s", key);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
-				continue;
-			}
-			if(strcmp(key, "phong"))
-				material_ptr->current.shader = PhongShader;
-		}
-		else if(strcmp(cmd_str, "light_position") == 0)
-		{
-			vecc_t x, y, z;
-			vector_t position;
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'light_position' not enough arguments.\n");
-				continue;
-			}
-			position = vec4(x, y, z, 1);
-			MatrixTimesVectorP(&light_ptr->current.position, transform_ptr, &position);
-		}
-		else if(strcmp(cmd_str, "light_color") == 0)
-		{
-			vecc_t x, y, z;
-			
-			int count = fscanf(input, "%lf %lf %lf", &x, &y, &z);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'light_color' not enough arguments.\n");
-				continue;
-			}
-			
-			light_ptr->current.color = vec3(x, y, z);
-		}
-		else if(strcmp(cmd_str, "light_distance") == 0)
-		{
-			vecc_t x;
-			
-			int count = fscanf(input, "%lf", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'light_distance' not enough arguments.\n");
-				continue;
-			}
-			
-			light_ptr->current.distance = x;
-		}
-		else if(strcmp(cmd_str, "light_energy") == 0)
-		{
-			vecc_t x;
-			
-			int count = fscanf(input, "%lf", &x);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'light_energy' not enough arguments.\n");
-				continue;
-			}
-			
-			light_ptr->current.energy = x;
-		}
-		else if(strcmp(cmd_str, "make_material") == 0)
-		{
-			material_ptr->next_ptr = malloc(sizeof(mat_list_t));
-			memset(material_ptr->next_ptr, 0, sizeof(mat_list_t));
-			material_ptr->next_ptr->last_ptr = material_ptr;
-			material_ptr = material_ptr->next_ptr;
-			material_ptr->current.shader = PhongShader;
-			material_ptr->current.table = HashTableNewDefault();
-			current_material_ptr = &material_ptr->current;
-		}
-		else if(strcmp(cmd_str, "make_light") == 0)
-		{
-			light_ptr->next_ptr = malloc(sizeof(light_list_t));
-			memset(light_ptr->next_ptr, 0, sizeof(light_list_t));
-			light_ptr->next_ptr->last_ptr = light_ptr;
-			light_ptr = light_ptr->next_ptr;
-		}
-		else if(strcmp(cmd_str, "in_file") == 0)
-		{
-			char file[255];
-			fscanf(input, "%s", file);
-			input = fopen(file, "r");
-			if (input == NULL) {
-				printf("error: file not found.\n");
-				input = stdin;
-			}
-		}
-		else if(strcmp(cmd_str, "out_file") == 0)
-		{
-			fscanf(input, "%s", out_file);
-			
-		}
-		else if(strcmp(cmd_str, "in_stdin") == 0)
-		{
-			input = stdin;
-		}
-		else if(strcmp(cmd_str, "render_samples") == 0)
-		{
-			int count = fscanf(input, "%i", &samples);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
-				continue;
-			}
-		}
-		else if(strcmp(cmd_str, "render_shadow_samples") == 0)
-		{
-			int count = fscanf(input, "%i", &shadow_samples);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
-				continue;
-			}
-		}
-		else if(strcmp(cmd_str, "render_section_size") == 0)
-		{
-			int count = fscanf(input, "%i", &section_size);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'render_section_size' not enough arguments.\n");
-				continue;
-			}
-		}
-		else if(strcmp(cmd_str, "render_threads") == 0)
-		{
-			int count = fscanf(input, "%i", &threads);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'render_threads' not enough arguments.\n");
-				continue;
-			}
-		}
-		else if(strcmp(cmd_str, "render_iterations") == 0)
-		{
-			int count = fscanf(input, "%i", &max_iterations);
-			if(count == 0)
-			{
-				fprintf(stderr, "error: 'render_iterations' not enough arguments.\n");
-				continue;
-			}
-		}
-		else if(strcmp(cmd_str, "render") == 0)
-		{
-			unsigned int width;
-			unsigned int height;
-			image_t image;
-			int count = fscanf(input, "%u %u", &width, &height);
-			if(count < 2)
-			{
-				fprintf(stderr, "error: 'render' not enough arguments.\n");
-				continue;
-			}
-			
-			vecc_t aspect = (vecc_t)height / (vecc_t)width;
-			vecc_t scale_x = 2 / (vecc_t) width;
-			vecc_t scale_y = -aspect * 2 / (vecc_t) height;
-			image.width = width;
-			image.height = height;
-			image.data = (unsigned char *) malloc(width * height * 4);
-			
-			clock_t start_time, end_time;
-			float elapsed_secs;
-			
-			start_time = clock();
-			
-			printf("info: generating tree\n");
-			kd_tree_t *tree_ptr = GenerateTree(triangles_ptr, 0);
-			end_time = clock();
-			elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
-			start_time = end_time;
-			printf("info: elapsed time %f seconds.\n", elapsed_secs);
-			printf("info: rendering\n");
-			/*for(int i = 0; i < width; i ++)
-			{
-				for(int j = 0; j < height; j ++)
-				{
-					int index = (i + j * width) * 4;
-					vector_t average = vec4(0, 0, 0, 0);
-					for(int k = 0; k < samples; k ++)
-					{
-						for(int l = 0; l < samples; l ++)
-						{
-							vecc_t x = (vecc_t)(i - (int)width / 2) * scale_x
-								+ k * scale_x / samples;
-							vecc_t y = (vecc_t)((int)height / 2 - j) * scale_y
-								+ l * scale_y / samples;
-							vecc_t z = -focal_length;
-					
-							ray_t ray = NewRay(vec3(0, 0, 0), vec3(x, y, z));
-					
-							hit_t result = RayTree(ray, tree_ptr);
-							if(result.t > 0)
-							{
-								vector_t color = result.material_ptr->shader(result, lights_ptr);
-								color = VectorClamp(color);
-								average = VectorPlusVector(average, color);
-							}
-							else
-							{
-								average = VectorPlusVector(average, sky);
-							}
-						}
-					}
-					average = VectorTimesScalar(average, 1.0f / (samples * samples));
-					image[index + 0] = (unsigned char) (average.x * 255);
-					image[index + 1] = (unsigned char) (average.y * 255);
-					image[index + 2] = (unsigned char) (average.z * 255);
-					image[index + 3] = (unsigned char) (255);
-				}
-			} */
-			
-			Render(
-				image,
-				tree_ptr,
-				lights_ptr,
-				sky,
-				section_size,
-				aspect,
-				scale_x, scale_y,
-				focal_length,
-				samples,
-				shadow_samples,
-				max_iterations,
-				threads);
-			
-			end_time = clock();
-			elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
-			printf("info: elapsed time %f seconds.\n", elapsed_secs);
-			
-			printf("info: saving file '%s'.\n", out_file);
-			unsigned error = lodepng_encode32_file(out_file, image.data, width, height);
-
-			/*if there's an error, display it*/
-			if(error)
-				printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
-			printf("okay\n");
-			FreeTree(tree_ptr);
-		}
-		else if(strcmp(cmd_str, "print_triangles") == 0)
-		{
-			printf("triangles: \n");
-			PrintTriangles(triangles_ptr);
-		}
-		else if(strcmp(cmd_str, "transform_pop") == 0)
-		{
-			transform_ptr --;
-		}
-		else if(strcmp(cmd_str, "transform_push") == 0)
-		{
-			transform_ptr ++;
-			memcpy(transform_ptr, transform_ptr - 1, sizeof(matrix_t));
-		}
-		else if(strcmp(cmd_str, "transform_translate") == 0)
-		{
-			vector_t t;
-			matrix_t translate;
-			fscanf(input, "%lf %lf %lf", &t.x, &t.y, &t.z);
-			translate = NewTranslateMatrix(t);
-			*transform_ptr = MatrixTimesMatrix(*transform_ptr, translate);
-		}
-		else if(strcmp(cmd_str, "transform_scale") == 0)
-		{
-			vector_t t;
-			matrix_t scale;
-			fscanf(input, "%lf %lf %lf", &t.x, &t.y, &t.z);
-			scale = NewScaleMatrix(t);
-			*transform_ptr = MatrixTimesMatrix(*transform_ptr, scale);
-		}
-		else if(strcmp(cmd_str, "transform_rotate") == 0)
-		{
-			vecc_t angle;
-			vector_t t;
-			matrix_t rotate;
-			fscanf(input, "%lf, %lf %lf %lf", &angle, &t.x, &t.y, &t.z);
-			rotate = NewRotateMatrix(angle, t);
-			*transform_ptr = MatrixTimesMatrix(*transform_ptr, rotate);
-		}
-		else if(strlen(cmd_str) > 0)
-		{
-			fprintf(stderr, "error: Unknown command \"%s\".\n", cmd_str);
-		}
+		
 	}
 	printf("info: freeing memory...\n");
-	FreeMaterialList(materials_ptr);
-	FreeLightList(lights_ptr);
+	FreeMaterialList(rs->materials_ptr);
+	FreeLightList(rs->lights_ptr);
+	HashTableFree(table_cmds);
 	printf("info: goodbye.\n");
 	return 0;
 }

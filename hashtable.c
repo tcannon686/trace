@@ -1,5 +1,6 @@
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "matrix.h"
 #include "hashtable.h"
@@ -55,6 +56,7 @@ hashtable_entry_t *HashTableGetOrInsert(hashtable_t *table, char *key)
         {
             table->capacity *= 2;
             HashTableRehash(table, table->capacity * 2);
+			return HashTableGet(table, key);
         }
         return entry_ptr;
     }
@@ -64,10 +66,13 @@ hashtable_entry_t *HashTableGetOrInsert(hashtable_t *table, char *key)
             return entry_ptr;
         if(entry_ptr->next_ptr == NULL) {
             entry_ptr->next_ptr = (hashtable_entry_t *) malloc(sizeof(hashtable_entry_t));
+			memset(entry_ptr->next_ptr, 0, sizeof(hashtable_entry_t));
+			strcpy(entry_ptr->next_ptr->key, key);
             table->count ++;
             if((double) table->count / table->capacity > table->max_load_factor)
             {
                 HashTableRehash(table, table->capacity * 2);
+				return HashTableGet(table, key);
             }
             return entry_ptr->next_ptr;
         }
@@ -129,20 +134,25 @@ void HashTableRehash(hashtable_t *table, int new_capacity)
             if(entries[index].key[0] == 0)
             {
                 entries[index] = *current;
+				entries[index].next_ptr = NULL;
                 if(!is_first)
                     free(current);
             }
             else
             {
+				hashtable_entry_t *next2;
                 hashtable_entry_t *current2 = &entries[index];
-                while(current2->next_ptr != NULL)
+				
+                while(current2 != NULL)
                 {
+					next2 = current2->next_ptr;
                     if(current2->next_ptr == NULL)
                     {
                         if(is_first)
                         {
                             current2->next_ptr = (hashtable_entry_t *)malloc(sizeof(hashtable_entry_t));
                             memcpy(current2->next_ptr, current, sizeof(hashtable_entry_t));
+							current2->next_ptr = NULL;
                         }
                         else
                         {
@@ -150,6 +160,7 @@ void HashTableRehash(hashtable_t *table, int new_capacity)
                             current->next_ptr = NULL;
                         }
                     }
+					current2 = next2;
                 }
             }
 
@@ -157,7 +168,8 @@ void HashTableRehash(hashtable_t *table, int new_capacity)
             current = next_ptr;
         }
     }
-    free(table);
+	table->capacity = new_capacity;
+	table->entries = entries;
 }
 
 void HashTableFree(hashtable_t *table)
@@ -180,4 +192,5 @@ void HashTableFree(hashtable_t *table)
             current = next_ptr;
         }
     }
+	free(table);
 }

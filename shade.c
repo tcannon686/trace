@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <time.h>
 #include "matrix.h"
 #include "hashtable.h"

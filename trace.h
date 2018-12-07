@@ -191,6 +191,35 @@ typedef struct render_params_list
 	render_params_list_t *next_ptr;
 } render_params_list_t;
 
+typedef struct render_settings
+{
+	matrix_t transform_stack[32];
+	matrix_t *transform_ptr;
+	vector_t sky;
+	tri_list_t *triangles_ptr;
+	tri_list_t *triangle_ptr;
+	mat_list_t *materials_ptr;
+	mat_list_t *material_ptr;
+	material_t *current_material_ptr;
+	light_list_t *lights_ptr;
+	light_list_t *light_ptr;
+	int current_point;
+	int current_normal;
+	vecc_t focal_length;
+	int samples;
+	int shadow_samples;
+	int section_size;
+	int threads;
+	int max_iterations;
+	FILE *input;
+	char out_file[255];
+} render_settings_t;
+
+// Returns 1 if program execution should continue, otherwise some other number.
+typedef int(*cmd_t)(render_settings_t *rs);
+
+void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
+
 vector_t RandomVector(int axes);
 
 ray_t NewRay(vector_t o, vector_t d);
@@ -219,5 +248,6 @@ int MatGetInteger(material_t *material_ptr, char *name);
 void MatSetInteger(material_t *material_ptr, char *name, int value);
 vector_t MatGetVector(material_t *material_ptr, char *name);
 void MatSetVector(material_t *material_ptr, char *name, vector_t value);
+
 
 #endif
