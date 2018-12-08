@@ -77,7 +77,7 @@ vector_t Barycentric(vector_t v, triangle_t tri)
 	
 	if(VectorDotVector(tri.normal, cross) < 0)
 	{
-		ret.z = -1;
+		ret.x = -1;
 		return ret;
 	}
 	else
@@ -101,7 +101,7 @@ vector_t Barycentric(vector_t v, triangle_t tri)
 	
 	if(VectorDotVector(tri.normal, cross) < 0)
 	{
-		ret.y = -1;
+		ret.x = -1;
 		return ret;
 	}
 	else
@@ -116,14 +116,15 @@ int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 	vecc_t ldotn = VectorDotVector(ray->d, tri.normal);
 	if(ldotn == 0)
 		return 0;
-	vecc_t d = VectorDotVector(VectorMinusVector(tri.v0, ray->o), tri.normal)
-		/ ldotn;
+	vecc_t d = VectorDotVector(VectorMinusVector(tri.v0, ray->o), tri.normal);
 	
+	if(d * ldotn <= 0)
+		return 0;
+	d /= ldotn;
 	if(d > hit_ptr->t)
 		return 0;
 	
-	if(d <= 0)
-		return 0;
+	
 	
 	vector_t pos = VectorPlusVector(ray->o, VectorTimesScalar(ray->d, d));
 	vector_t bary = Barycentric(pos, tri);
@@ -256,6 +257,27 @@ void PrintVector(vector_t v)
 vector_t VectorMix(vector_t left, vector_t right, vecc_t a)
 {
 	return VectorPlusVector(VectorTimesScalar(left, 1 - a), VectorTimesScalar(right, a));
+}
+
+
+// Remove triangles with area of 0.
+void CleanTriangles(tri_list_t **triangles_ptr)
+{
+	tri_list_t *current = *triangles_ptr;
+	while(current != NULL)
+	{
+		tri_list_t *next_ptr = current->next_ptr;
+		if(current->current.area == 0)
+		{
+			if(current->last_ptr != NULL)
+				current->last_ptr->next_ptr = next_ptr;
+			else
+				*triangles_ptr = next_ptr;
+			if(next_ptr != NULL)
+				next_ptr->last_ptr = current->last_ptr;
+		}
+		current = next_ptr;
+	}
 }
 
 kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
@@ -440,6 +462,7 @@ void FreeLightList(light_list_t *list_ptr) {
 	light_list_t *next_ptr;
 	while(list_ptr != NULL) {
 		next_ptr = list_ptr->next_ptr;
+		HashTableFree(list_ptr->current.table);
 		free(list_ptr);
 		list_ptr = next_ptr;
 	}
@@ -525,10 +548,13 @@ int RayTreeRecursive(hit_t *hit_ptr, ray_t *ray, kd_tree_t *tree_ptr)
 	{
 		if(tree_ptr->triangles_ptr != NULL)
 		{
-			return RayTriangles(hit_ptr, ray, tree_ptr->triangles_ptr);
+			int hit = RayTriangles(hit_ptr, ray, tree_ptr->triangles_ptr);
+			if(hit)
+				hit_ptr->node_ptr = tree_ptr;
+			return hit;
 		}
 		
-		int left, right;
+		int left = 0, right = 0;
 		if(ray->o.m[tree_ptr->axis_index] > tree_ptr->median.m[tree_ptr->axis_index])
 		{
 			right = RayTreeRecursive(hit_ptr, ray, tree_ptr->right_ptr);
@@ -622,6 +648,10 @@ void RenderSection(render_params_t *rp_ptr)
 {
 	int sampleWidth = (int)sqrt(rp_ptr->samples);
 	vecc_t sampleSize = 1.0 / sampleWidth;
+	kd_tree_t *last_hit = NULL;
+	vector_t sample_offset;
+	hit_t result;
+	vector_t sample;
 	for(int i = rp_ptr->x0; i < rp_ptr->x1; i ++)
 	{
 		for(int j = rp_ptr->y0; j < rp_ptr->y1; j ++)
@@ -629,21 +659,24 @@ void RenderSection(render_params_t *rp_ptr)
 			vector_t pixel = vec3(0, 0, 0);
 			for(int k = 0; k < rp_ptr->samples; k ++)
 			{
-				vector_t sample_offset = 
+				sample_offset = 
 					vec2((k % sampleWidth) * sampleSize, (k / sampleWidth) * sampleSize);
 				ray_t ray = NewRay(
 					vec3(0, 0, 0),
 					vec3(rp_ptr->scale_x * (((vecc_t)i - rp_ptr->image.width / 2.0) + sample_offset.x),
 						rp_ptr->scale_y * (((vecc_t)j - rp_ptr->image.height / 2.0) + sample_offset.y),
 						-rp_ptr->focal_length));
-				
-				hit_t result;
 				result.t = INFINITY;
 				result.tree_ptr = rp_ptr->tree_ptr;
-				vector_t sample = rp_ptr->sky_color;
+				sample = rp_ptr->sky_color;
+				if(last_hit != NULL)
+					RayTree(&result, ray, last_hit);
 				if(RayTree(&result, ray, rp_ptr->tree_ptr))
+				{
 					sample = VectorClamp(result.material_ptr->shader(
 						result, rp_ptr, 0, rp_ptr->max_iterations));
+					last_hit = result.node_ptr;
+				}
 				VectorPlusVectorP(&pixel, &pixel, &sample);
 			}
 			VectorTimesScalarP(&pixel, &pixel, 1.0 / rp_ptr->samples);
@@ -805,35 +838,6 @@ void Render(
 	
 }
 
-vecc_t MatGetNumber(material_t *material_ptr, char *key)
-{
-	return HashTableGet(material_ptr->table, key)->value.real;
-}
-
-int MatGetInteger(material_t *material_ptr, char *key)
-{
-	return HashTableGet(material_ptr->table, key)->value.integer;
-}
-
-vector_t MatGetVector(material_t *material_ptr, char *key)
-{
-	return HashTableGet(material_ptr->table, key)->value.vector;
-}
-
-void MatSetNumber(material_t *material_ptr, char *key, vecc_t value)
-{
-	HashTableGetOrInsert(material_ptr->table, key)->value.real = value;
-}
-
-void MatSetInteger(material_t *material_ptr, char *key, int value)
-{
-	HashTableGetOrInsert(material_ptr->table, key)->value.integer = value;
-}
-
-void MatSetVector(material_t *material_ptr, char *key, vector_t value)
-{
-	HashTableGetOrInsert(material_ptr->table, key)->value.vector = value;
-}
 
 int CmdQuit(render_settings_t *rs)
 {
@@ -899,7 +903,13 @@ int CmdVertex(render_settings_t *rs)
 
 int CmdMakeFace(render_settings_t *rs)
 {
-	if (rs->triangle_ptr->current.area != 0)
+	if(rs->triangles_ptr == NULL)
+	{
+		rs->triangle_ptr = malloc(sizeof(tri_list_t));
+		memset(rs->triangle_ptr, 0, sizeof(tri_list_t));
+		rs->triangles_ptr = rs->triangle_ptr;
+	}
+	else
 	{
 		if (rs->triangle_ptr->last_ptr != NULL)
 			rs->triangle_ptr->last_ptr->next_ptr = rs->triangle_ptr;
@@ -907,8 +917,9 @@ int CmdMakeFace(render_settings_t *rs)
 		memset(rs->triangle_ptr->next_ptr, 0, sizeof(tri_list_t));
 		rs->triangle_ptr->next_ptr->last_ptr = rs->triangle_ptr;
 		rs->triangle_ptr = rs->triangle_ptr->next_ptr;
-		rs->triangle_ptr->last_ptr->next_ptr = NULL;
+		rs->triangle_ptr->next_ptr = NULL;
 	}
+	
 	return 1;
 }
 
@@ -994,7 +1005,7 @@ int CmdMatSetNumber(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_set_number' not enough arguments.\n");
 		return 1;
 	}
-	MatSetNumber(&(rs->material_ptr->current), key, value);
+	PropGetOrInsert(&(rs->material_ptr->current), key).number = value;
 	return 1;
 }
 
@@ -1008,7 +1019,7 @@ int CmdMatSetInteger(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_set_integer' not enough arguments.\n");
 		return 1;
 	}
-	MatSetInteger(&(rs->material_ptr->current), key, value);
+	PropGetOrInsert(&(rs->material_ptr->current), key).integer = value;
 	return 1;
 }
 
@@ -1022,7 +1033,7 @@ int CmdMatSetVector(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
 		return 1;
 	}
-	MatSetVector(&(rs->material_ptr->current), key, value);
+	PropGetOrInsert(&(rs->material_ptr->current), key).vector = value;
 	return 1;
 }
 
@@ -1055,69 +1066,95 @@ int CmdLightPosition(render_settings_t *rs)
 	return 1;
 }
 
-int CmdLightColor(render_settings_t *rs)
+int CmdLightSetVector(render_settings_t *rs)
 {
+	char key[32];
 	vecc_t x, y, z;
 
-	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	int count = fscanf(rs->input, "%s %lf %lf %lf", key, &x, &y, &z);
 	if (count == 0)
 	{
-		fprintf(stderr, "error: 'light_color' not enough arguments.\n");
+		fprintf(stderr, "error: 'light_set_vector' not enough arguments.\n");
 		return 1;
 	}
 
-	rs->light_ptr->current.color = vec3(x, y, z);
+	PropGetOrInsert(&(rs->light_ptr->current), key).vector = vec3(x, y, z);
 	return 1;
 }
 
-int CmdLightDistance(render_settings_t *rs)
+int CmdLightSetNumber(render_settings_t *rs)
 {
+	char key[32];
 	vecc_t x;
 
-	int count = fscanf(rs->input, "%lf", &x);
+	int count = fscanf(rs->input, "%s %lf", key, &x);
 	if (count == 0)
 	{
-		fprintf(stderr, "error: 'light_distance' not enough arguments.\n");
+		fprintf(stderr, "error: 'light_set_number' not enough arguments.\n");
 		return 1;
 	}
 
-	rs->light_ptr->current.distance = x;
+	PropGetOrInsert(&(rs->light_ptr->current), key).number = x;
 	return 1;
 }
 
-int CmdLightEnergy(render_settings_t *rs)
+int CmdLightSetInteger(render_settings_t *rs)
 {
-	vecc_t x;
+	char key[32];
+	int x;
 
-	int count = fscanf(rs->input, "%lf", &x);
+	int count = fscanf(rs->input, "%s %i", key, &x);
 	if (count == 0)
 	{
-		fprintf(stderr, "error: 'light_energy' not enough arguments.\n");
+		fprintf(stderr, "error: 'light_set_integer' not enough arguments.\n");
 		return 1;
 	}
 
-	rs->light_ptr->current.energy = x;
+	PropGet(&(rs->light_ptr->current), key).integer = x;
 	return 1;
 }
 
 int CmdMakeMaterial(render_settings_t *rs)
 {
-	rs->material_ptr->next_ptr = malloc(sizeof(mat_list_t));
-	memset(rs->material_ptr->next_ptr, 0, sizeof(mat_list_t));
-	rs->material_ptr->next_ptr->last_ptr = rs->material_ptr;
-	rs->material_ptr = rs->material_ptr->next_ptr;
-	rs->material_ptr->current.shader = PhongShader;
-	rs->material_ptr->current.table = HashTableNewDefault();
-	rs->current_material_ptr = &rs->material_ptr->current;
+	if(rs->material_ptr == NULL)
+	{
+		rs->material_ptr = malloc(sizeof(mat_list_t));
+		memset(rs->material_ptr, 0, sizeof(mat_list_t));
+		rs->material_ptr->current.shader = PhongShader;
+		rs->material_ptr->current.table = HashTableNewDefault();
+		rs->current_material_ptr = &rs->material_ptr->current;
+		rs->materials_ptr = rs->material_ptr;
+	}
+	else
+	{
+		rs->material_ptr->next_ptr = malloc(sizeof(mat_list_t));
+		memset(rs->material_ptr->next_ptr, 0, sizeof(mat_list_t));
+		rs->material_ptr->next_ptr->last_ptr = rs->material_ptr;
+		rs->material_ptr = rs->material_ptr->next_ptr;
+		rs->material_ptr->current.shader = PhongShader;
+		rs->material_ptr->current.table = HashTableNewDefault();
+		rs->current_material_ptr = &rs->material_ptr->current;
+	}
 	return 1;
 }
 
 int CmdMakeLight(render_settings_t *rs)
 {
-	rs->light_ptr->next_ptr = malloc(sizeof(light_list_t));
-	memset(rs->light_ptr->next_ptr, 0, sizeof(light_list_t));
-	rs->light_ptr->next_ptr->last_ptr = rs->light_ptr;
-	rs->light_ptr = rs->light_ptr->next_ptr;
+	if(rs->light_ptr == NULL)
+	{
+		rs->light_ptr = malloc(sizeof(light_list_t));
+		memset(rs->light_ptr, 0, sizeof(light_list_t));
+		rs->light_ptr->current.table = HashTableNewDefault();
+		rs->lights_ptr = rs->light_ptr;
+	}
+	else
+	{
+		rs->light_ptr->next_ptr = malloc(sizeof(light_list_t));
+		memset(rs->light_ptr->next_ptr, 0, sizeof(light_list_t));
+		rs->light_ptr->next_ptr->last_ptr = rs->light_ptr;
+		rs->light_ptr = rs->light_ptr->next_ptr;
+		rs->light_ptr->current.table = HashTableNewDefault();
+	}
 	return 1;
 }
 
@@ -1225,6 +1262,7 @@ int CmdRender(render_settings_t *rs)
 	start_time = clock();
 
 	printf("info: generating tree\n");
+	CleanTriangles(&rs->triangles_ptr);
 	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0);
 	end_time = clock();
 	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
@@ -1374,9 +1412,9 @@ int main(int argc, char **argv)
 	SetCommand(table_cmds, "mat_set_vector", CmdMatSetVector);
 	SetCommand(table_cmds, "mat_shader", CmdMatShader);
 	SetCommand(table_cmds, "light_position", CmdLightPosition);
-	SetCommand(table_cmds, "light_color", CmdLightColor);
-	SetCommand(table_cmds, "light_energy", CmdLightEnergy);
-	SetCommand(table_cmds, "light_distance", CmdLightDistance);
+	SetCommand(table_cmds, "light_set_number", CmdLightSetNumber);
+	SetCommand(table_cmds, "light_set_integer", CmdLightSetInteger);
+	SetCommand(table_cmds, "light_set_vector", CmdLightSetVector);
 	SetCommand(table_cmds, "make_material", CmdMakeMaterial);
 	SetCommand(table_cmds, "make_light", CmdMakeLight);
 	SetCommand(table_cmds, "in_file", CmdInFile);
@@ -1400,21 +1438,16 @@ int main(int argc, char **argv)
 	rs->transform_ptr = rs->transform_stack;
 	IdentityMatrixP(rs->transform_ptr);
 	
-	rs->triangles_ptr = (tri_list_t *)malloc(sizeof(tri_list_t));
-	rs->triangle_ptr = rs->triangles_ptr;
-	rs->materials_ptr = (mat_list_t *)malloc(sizeof(mat_list_t));
-	rs->material_ptr = rs->materials_ptr;
-	rs->current_material_ptr = &rs->material_ptr->current;
-	rs->lights_ptr = (light_list_t *)malloc(sizeof(light_list_t));
-	rs->light_ptr = rs->lights_ptr;
+	rs->triangles_ptr = NULL;
+	rs->triangle_ptr = NULL;
+	rs->materials_ptr = NULL;
+	rs->material_ptr = NULL;
+	rs->current_material_ptr = NULL;
+	rs->lights_ptr = NULL;
+	rs->light_ptr = NULL;
 	rs->current_point = 0;
 	rs->current_normal = 0;
-
-	memset(rs->triangles_ptr, 0, sizeof(tri_list_t));
-	memset(rs->materials_ptr, 0, sizeof(mat_list_t));
-	memset(rs->lights_ptr, 0, sizeof(light_list_t));
-
-	rs->current_material_ptr->table = HashTableNewDefault();
+	
 	rs->focal_length = 1;
 	rs->samples = 1;
 	rs->shadow_samples = 1;
@@ -1423,8 +1456,6 @@ int main(int argc, char **argv)
 	rs->max_iterations = 10;
 	rs->input = stdin;
 	memcpy(rs->out_file, DEFAULT_OUTPUT, sizeof(DEFAULT_OUTPUT));
-	
-	rs->material_ptr->current.shader = PhongShader;
 	
 	if(argc > 1)
 		rs->input = fopen(argv[1], "r");

@@ -54,7 +54,6 @@ hashtable_entry_t *HashTableGetOrInsert(hashtable_t *table, char *key)
         table->count ++;
         if((double) table->count / table->capacity > table->max_load_factor)
         {
-            table->capacity *= 2;
             HashTableRehash(table, table->capacity * 2);
 			return HashTableGet(table, key);
         }
@@ -168,6 +167,7 @@ void HashTableRehash(hashtable_t *table, int new_capacity)
             current = next_ptr;
         }
     }
+    free(table->entries);
 	table->capacity = new_capacity;
 	table->entries = entries;
 }

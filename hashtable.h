@@ -5,7 +5,7 @@ typedef union
 {
     void *pointer;
     int integer;
-    vecc_t real;
+    vecc_t number;
     vector_t vector;
 } hashtable_value_t;
 

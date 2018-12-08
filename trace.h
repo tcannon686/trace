@@ -23,15 +23,14 @@ typedef struct
 	material_t *material_ptr;
 	ray_t ray;
 	kd_tree_t *tree_ptr;
+	kd_tree_t *node_ptr;
 } hit_t;
 
 
 typedef struct
 {
 	vector_t position;
-	vector_t color;
-	vecc_t distance;
-	vecc_t energy;
+	hashtable_t *table;
 } light_t;
 
 struct light_list;
@@ -241,12 +240,7 @@ void FreeTree(kd_tree_t *tree_ptr);
 void FreeMaterialList(mat_list_t *list_ptr);
 void FreeLightList(light_list_t *list_ptr);
 
-vecc_t MatGetNumber(material_t *material_ptr, char *name);
-void MatSetNumber(material_t *material_ptr, char *name, vecc_t value);
-int MatGetInteger(material_t *material_ptr, char *name);
-void MatSetInteger(material_t *material_ptr, char *name, int value);
-vector_t MatGetVector(material_t *material_ptr, char *name);
-void MatSetVector(material_t *material_ptr, char *name, vector_t value);
-
+#define PropGet(material_ptr, key)	HashTableGet((material_ptr)->table, key)->value
+#define PropGetOrInsert(material_ptr, key)	HashTableGetOrInsert((material_ptr)->table, key)->value
 
 #endif

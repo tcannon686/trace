@@ -18,13 +18,13 @@ vector_t PhongShader(
 	vector_t V = VectorNormalize(VectorNegate(hit.position));
 	light_list_t *cur_light_ptr = rp_ptr->lights_ptr;
 
-	vector_t diffuse = MatGetVector(hit.material_ptr, "diffuse");
-	vector_t specular = MatGetVector(hit.material_ptr, "specular");
-	vecc_t shininess = MatGetNumber(hit.material_ptr, "shininess");
-	vecc_t reflectiveness = MatGetNumber(hit.material_ptr, "reflectiveness");
-	vecc_t alpha = MatGetNumber(hit.material_ptr, "alpha");
-	vecc_t ior = MatGetNumber(hit.material_ptr, "ior");
-	int shadeless = MatGetInteger(hit.material_ptr, "shadeless");
+	vector_t diffuse = PropGet(hit.material_ptr, "diffuse").vector;
+	vector_t specular = PropGet(hit.material_ptr, "specular").vector;
+	vecc_t shininess = PropGet(hit.material_ptr, "shininess").number;
+	vecc_t reflectiveness = PropGet(hit.material_ptr, "reflectiveness").number;
+	vecc_t alpha = PropGet(hit.material_ptr, "alpha").number;
+	vecc_t ior = PropGet(hit.material_ptr, "ior").number;
+	int shadeless = PropGet(hit.material_ptr, "shadeless").integer;
 
 	if(!shadeless)
 	{
@@ -34,7 +34,9 @@ vector_t PhongShader(
 			vector_t Id, Is;
 			vector_t Lm = VectorMinusVector(l.position, hit.position);
 			vecc_t distance = VectorMagnitude(Lm);
-			vecc_t attenuation = l.energy * (l.distance / (l.distance + distance));
+			vecc_t l_distance = PropGet(&l, "distance").number;
+			vecc_t l_energy = PropGet(&l, "energy").number;
+			vecc_t attenuation = l_energy * (l_distance / (l_distance + distance));
 			Lm = VectorTimesScalar(Lm, 1.0 / distance);
 			vector_t N = hit.normal;
 			vector_t R = VectorReflect(Lm, N);
@@ -61,7 +63,8 @@ vector_t PhongShader(
 				highlight);
 		
 		
-			float shadow = 1.0f;
+			vecc_t shadow = 1.0;
+			vecc_t shadow_sample_weight = 1.0 / rp_ptr->shadow_samples;
 			vector_t ray_start = VectorPlusVector(hit.position, VectorTimesScalar(hit.normal, THRESHOLD));
 			vector_t dir = VectorMinusVector(l.position, ray_start);
 			vector_t d;
@@ -78,7 +81,7 @@ vector_t PhongShader(
 				
 				if(RayTree(&shadow_hit, ray, hit.tree_ptr) &&
 					shadow_hit.t < 1.0 - THRESHOLD)
-					shadow -= 1.0 / rp_ptr->shadow_samples;
+					shadow -= shadow_sample_weight;
 			}
 		
 			VectorTimesScalarP(&Id, &Id, shadow);
