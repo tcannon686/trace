@@ -2,8 +2,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <Windows.h>
+#ifdef _WIN32
+#	include <Windows.h>
+#else
+#	include <pthread.h>
+#endif
 #include <time.h>
+
+#ifndef min
+#define min(a, b)			a < b ? a : b
+#endif
+
+#ifndef max
+#define max(a, b)			a > b ? a : b
+#endif
 
 #include "matrix.h"
 #include "hashtable.h"
@@ -645,6 +657,7 @@ void RenderSection(render_params_t *rp_ptr)
 	}
 }
 
+#ifdef _WIN32
 DWORD WINAPI RenderThread(LPVOID lpParameter)
 {
 	render_params_list_t *rps = (render_params_list_t *)lpParameter;
@@ -659,6 +672,22 @@ DWORD WINAPI RenderThread(LPVOID lpParameter)
 	}
 	return 0;
 }
+#else
+void *RenderThread(void *lpParameter)
+{
+	render_params_list_t *rps = (render_params_list_t *)lpParameter;
+	for(render_params_list_t *cur = rps; cur != NULL; cur = cur->next_ptr)
+	{
+		if(cur->is_rendering)
+			continue;
+		cur->is_rendering = 1;
+		RenderSection(&cur->current);
+		printf("info: rendered section (%i, %i), (%i, %i).\n",
+			cur->current.x0, cur->current.y0, cur->current.x1, cur->current.y1);
+	}
+	return NULL;
+}
+#endif
 
 
 void Render(
@@ -675,7 +704,11 @@ void Render(
 	int max_iterations,
 	int num_threads)
 {
-	HANDLE threads[64];
+#ifdef _WIN32
+	HANDLE threads[8];
+#else
+	pthread_t threads[8];
+#endif
 	render_params_list_t *rps = NULL;
 	render_params_list_t *last_ptr = NULL;
 	for(int i = 0; i < image.width; i += section_size)
@@ -713,16 +746,33 @@ void Render(
 	
 		for(int i = 0; i < num_threads; i++)
 		{
+#ifdef _WIN32
 			threads[i] = CreateThread(
 				NULL, 0, RenderThread, (LPVOID)rps, 0, NULL);
+			
 			if(threads[i] == NULL)
 			{
 				fprintf(stderr, "error: failed to create thread.\n");
 				return;
 			}
+#else
+			if(pthread_create(&(threads[i]), NULL, &RenderThread, (void *)rps)
+				!= 0)
+			{
+				fprintf(stderr, "error: failed to create thread.\n");
+				return;
+			}
+#endif
 		}
-	
+
+#ifdef _WIN32
 		WaitForMultipleObjects(num_threads, threads, TRUE, INFINITE);
+#else
+		for(int i = 0; i < num_threads; i++)
+		{
+			pthread_join(threads[i], NULL);
+		}
+#endif
 	
 		last_ptr = rps;
 		while(last_ptr != NULL)
@@ -737,7 +787,11 @@ void Render(
 	{
 		for(int i = 0; i < num_threads; i++)
 		{
+#ifdef _WIN32
 			RenderThread((LPVOID)rps);
+#else
+			RenderThread((void *)rps);
+#endif
 		}
 		
 		last_ptr = rps;

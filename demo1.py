@@ -6,7 +6,6 @@ print("-Demo 1-")
 trace = Trace(
     sky_color=(0.5, 0, 0.5),
     out_file="demo1.png",
-    code_path="demo1.ray",
     quality=32
 )
 
