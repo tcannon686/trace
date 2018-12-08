@@ -71,7 +71,6 @@ typedef struct render_params
 
 typedef vector_t (*shader_t)(
 	hit_t hit,
-	light_list_t *lights_ptr,
 	render_params_t *rp_ptr,
 	int iteration,
 	int max_iterations);

@@ -25,16 +25,16 @@ last_material = None
 
 materials = []
 for material in bpy.data.materials:
-    output += 'mat_diffuse ' + vecstring(material.diffuse_color * material.diffuse_intensity) + '\n'
-    output += 'mat_specular ' + vecstring(material.specular_color * material.specular_intensity) + '\n'
-    output += 'mat_shininess ' + str(material.specular_hardness) + '\n'
-    output += 'mat_reflectiveness ' + str(material.raytrace_mirror.reflect_factor) + '\n'
-    output += 'mat_alpha ' + str(material.alpha) + '\n'
-    output += 'mat_ior ' + str(material.raytrace_transparency.ior) + '\n'
+    output += 'mat_set_vector diffuse ' + vecstring(material.diffuse_color * material.diffuse_intensity) + '\n'
+    output += 'mat_set_vector specular ' + vecstring(material.specular_color * material.specular_intensity) + '\n'
+    output += 'mat_set_number shininess ' + str(material.specular_hardness) + '\n'
+    output += 'mat_set_number reflectiveness ' + str(material.raytrace_mirror.reflect_factor) + '\n'
+    output += 'mat_set_number alpha ' + str(material.alpha) + '\n'
+    output += 'mat_set_number ior ' + str(material.raytrace_transparency.ior) + '\n'
     if material.use_shadeless:
-        output += 'mat_shadeless 1\n'
+        output += 'mat_set_integer shadeless 1\n'
     else:
-        output += 'mat_shadeless 0\n'
+        output += 'mat_set_integer shadeless 0\n'
     output += 'make_material\n'
     materials.append(material)
 
@@ -65,7 +65,7 @@ for object in scene.objects:
         output += 'light_color ' + vecstring(object.data.color) + '\n'
         output += 'light_energy ' + str(object.data.energy) + '\n'
         output += 'light_distance ' + str(object.data.distance) + '\n'
-        output += 'make_light'
+        output += 'make_light\n'
 
 output += 'cam_fov ' + str(scene.camera.data.angle) + '\n'
 

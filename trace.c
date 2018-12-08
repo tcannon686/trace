@@ -52,7 +52,7 @@ vector_t RandomVector(int axes)
 	return ret;
 }
 
-inline vector_t Barycentric(vector_t v, triangle_t tri)
+vector_t Barycentric(vector_t v, triangle_t tri)
 {
 	vector_t ret;
 	vecc_t area_inv = 1.0 / tri.area;
@@ -99,7 +99,7 @@ inline vector_t Barycentric(vector_t v, triangle_t tri)
 	return ret;
 }
 
-inline int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
+int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 {
 	vecc_t ldotn = VectorDotVector(ray->d, tri.normal);
 	if(ldotn == 0)
@@ -433,7 +433,7 @@ void FreeLightList(light_list_t *list_ptr) {
 	}
 }
 
-inline vecc_t RayBox(ray_t *ray, bounding_box_t box)
+vecc_t RayBox(ray_t *ray, bounding_box_t box)
 {
 	vecc_t tmin, tmax, tymin, tymax, tzmin, tzmax;
 	if(ray->d_inverse.x >= 0)
@@ -631,8 +631,7 @@ void RenderSection(render_params_t *rp_ptr)
 				vector_t sample = rp_ptr->sky_color;
 				if(RayTree(&result, ray, rp_ptr->tree_ptr))
 					sample = VectorClamp(result.material_ptr->shader(
-						result,
-						rp_ptr->lights_ptr, rp_ptr, 0, rp_ptr->max_iterations));
+						result, rp_ptr, 0, rp_ptr->max_iterations));
 				VectorPlusVectorP(&pixel, &pixel, &sample);
 			}
 			VectorTimesScalarP(&pixel, &pixel, 1.0 / rp_ptr->samples);

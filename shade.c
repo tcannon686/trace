@@ -10,14 +10,13 @@
 
 vector_t PhongShader(
 	hit_t hit,
-	light_list_t *lights_ptr,
 	render_params_t *rp_ptr,
 	int iteration, int max_iterations)
 {
 	vector_t diffuse_color = vec3(0, 0, 0);
 	vector_t specular_color = vec3(0, 0, 0);
 	vector_t V = VectorNormalize(VectorNegate(hit.position));
-	light_list_t *cur_light_ptr = lights_ptr;
+	light_list_t *cur_light_ptr = rp_ptr->lights_ptr;
 
 	vector_t diffuse = MatGetVector(hit.material_ptr, "diffuse");
 	vector_t specular = MatGetVector(hit.material_ptr, "specular");
@@ -109,7 +108,7 @@ vector_t PhongShader(
 		if(RayTree(&reflect_hit, ray, reflect_hit.tree_ptr))
 		{
 			reflect_color = reflect_hit.material_ptr->shader(
-				reflect_hit, lights_ptr, rp_ptr, iteration + 1, max_iterations);
+				reflect_hit, rp_ptr, iteration + 1, max_iterations);
 		}
 		VectorClampP(&reflect_color, &reflect_color);
 		diffuse_color = VectorMix(diffuse_color, reflect_color, reflectiveness);
@@ -158,7 +157,7 @@ vector_t PhongShader(
 		if(RayTree(&refract_hit, ray, refract_hit.tree_ptr))
 		{
 			refract_color = refract_hit.material_ptr->shader(
-				refract_hit, lights_ptr, rp_ptr, iteration + 1, max_iterations);
+				refract_hit, rp_ptr, iteration + 1, max_iterations);
 		}
 		VectorClampP(&refract_color, &refract_color);
 		diffuse_color = VectorMix(refract_color, diffuse_color, alpha);
