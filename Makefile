@@ -1,5 +1,5 @@
 
-OBJECTS = trace.o matrix.o lodepng.o shade.o hashtable.o
+OBJECTS = trace.o matrix.o lodepng.o shade.o hashtable.o xwin.o
 PROGRAM = trace.exe
 
 DEBUG_OPTIONS = -Wall -g
@@ -8,25 +8,35 @@ RELEASE_OPTIONS =
 OPTIONS = $(DEBUG_OPTIONS)
 LIBS = -lm -lpthread
 
+CC = gcc
+
+ifeq ($(INCLUDE_GUI), true) 
+LIBS += -lX11
+OPTIONS += -DINCLUDE_GUI
+endif
+
+all : $(PROGRAM)
 $(PROGRAM) : $(OBJECTS)
-	gcc $(OBJECTS) -o $(PROGRAM) $(LIBS)
+	$(CC) $(OBJECTS) -o $(PROGRAM) $(LIBS)
 
 trace.o : trace.c trace.h
-	gcc -c trace.c -o trace.o $(OPTIONS)
+	$(CC) -c trace.c -o trace.o $(OPTIONS)
 
 shade.o : shade.c shade.h
-	gcc -c shade.c -o shade.o $(OPTIONS)
+	$(CC) -c shade.c -o shade.o $(OPTIONS)
 
 matrix.o : matrix.c matrix.h
-	gcc -c matrix.c -o matrix.o $(OPTIONS)
+	$(CC) -c matrix.c -o matrix.o $(OPTIONS)
 
 hashtable.o : hashtable.c hashtable.h
-	gcc -c hashtable.c -o hashtable.o $(OPTIONS)
+	$(CC) -c hashtable.c -o hashtable.o $(OPTIONS)
+
+xwin.o : xwin.c xwin.h
+	$(CC) -c xwin.c -o xwin.o $(OPTIONS)
 
 lodepng.o : lodepng.c lodepng.h
-	gcc -c lodepng.c -o lodepng.o
+	$(CC) -c lodepng.c -o lodepng.o
 
 clean :
 	rm $(OBJECTS) $(PROGRAM)
-
 

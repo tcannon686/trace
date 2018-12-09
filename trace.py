@@ -388,9 +388,9 @@ class Trace:
     def __init__(self,
         out_file = 'output.png', renderer_path = None,
         width=640, height=480, fov=70 * math.pi / 180, render_samples = 4,
-        render_shadow_samples=1, render_threads = 4, render_section_size=300,
+        render_shadow_samples=1, render_threads=4, render_section_size=1000,
         render_iterations=10, quality=16, sky_color = (0.25, 0.25, 0.25),
-        code_path=None):
+        code_path=None, render_window=False):
         """Creates a renderer from the following properties:
         renderer_path, out_file, width, height, fov, render_samples, render_threads,
         render_section_size, render_iterations, sky_color, code_path.
@@ -410,6 +410,7 @@ class Trace:
         else:
             self.renderer_path = renderer_path
         self.out_file = out_file
+        self.render_window = render_window
         self.width = width
         self.height = height
         self.fov = fov
@@ -438,7 +439,10 @@ class Trace:
         output += 'render_iterations ' + str(self.render_iterations) + '\n'
         output += 'sky ' + str(self.sky_color[0]) + ' ' + str(self.sky_color[1]) + ' ' + str(self.sky_color[2]) + '\n'
         output += 'out_file ' + self.out_file + '\n'
-        output += 'render ' + str(self.width) + ' ' + str(self.height) + '\n'
+        if self.render_window:
+        	output += 'render_window ' + str(self.width) + ' ' + str(self.height) + '\n'
+        else:
+        	output += 'render ' + str(self.width) + ' ' + str(self.height) + '\n'
         output += 'quit\n'
         if self.code_path != None:
             print('Saving to ' + self.code_path)

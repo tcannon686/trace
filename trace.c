@@ -23,6 +23,10 @@
 #include "lodepng.h"
 #include "shade.h"
 
+#ifdef INCLUDE_GUI
+#include "xwin.h"
+#endif
+
 #define DEFAULT_OUTPUT "output.png"
 #define THRESHOLD 0.00001
 
@@ -440,6 +444,8 @@ void FreeTriList(tri_list_t *list_ptr) {
 }
 
 void FreeTree(kd_tree_t *tree_ptr) {
+	if(tree_ptr == NULL)
+		return;
 	if(tree_ptr->triangles_ptr != NULL)
 		FreeTriList(tree_ptr->triangles_ptr);
 	if(tree_ptr->left_ptr != NULL)
@@ -663,8 +669,8 @@ void RenderSection(render_params_t *rp_ptr)
 					vec2((k % sampleWidth) * sampleSize, (k / sampleWidth) * sampleSize);
 				ray_t ray = NewRay(
 					vec3(0, 0, 0),
-					vec3(rp_ptr->scale_x * (((vecc_t)i - rp_ptr->image.width / 2.0) + sample_offset.x),
-						rp_ptr->scale_y * (((vecc_t)j - rp_ptr->image.height / 2.0) + sample_offset.y),
+					vec3(rp_ptr->scale_x * (((vecc_t)i - rp_ptr->width / 2.0) + sample_offset.x),
+						rp_ptr->scale_y * (((vecc_t)j - rp_ptr->height / 2.0) + sample_offset.y),
 						-rp_ptr->focal_length));
 				result.t = INFINITY;
 				result.tree_ptr = rp_ptr->tree_ptr;
@@ -680,12 +686,7 @@ void RenderSection(render_params_t *rp_ptr)
 				VectorPlusVectorP(&pixel, &pixel, &sample);
 			}
 			VectorTimesScalarP(&pixel, &pixel, 1.0 / rp_ptr->samples);
-			
-			int pixel_index = (i + j * rp_ptr->image.width) * 4;
-			rp_ptr->image.data[pixel_index + 0] = (unsigned char)(pixel.m[0] * 255);
-			rp_ptr->image.data[pixel_index + 1] = (unsigned char)(pixel.m[1] * 255);
-			rp_ptr->image.data[pixel_index + 2] = (unsigned char)(pixel.m[2] * 255);
-			rp_ptr->image.data[pixel_index + 3] = (unsigned char)(255);
+			rp_ptr->callback(i, j, pixel, rp_ptr->callback_data);
 		}
 	}
 }
@@ -724,7 +725,9 @@ void *RenderThread(void *lpParameter)
 
 
 void Render(
-	image_t image,
+	pixel_traced_callback_t callback,
+	void *callback_data,
+	int width, int height,
 	kd_tree_t *tree_ptr,
 	light_list_t *lights_ptr,
 	vector_t sky_color,
@@ -744,21 +747,22 @@ void Render(
 #endif
 	render_params_list_t *rps = NULL;
 	render_params_list_t *last_ptr = NULL;
-	for(int i = 0; i < image.width; i += section_size)
+	for(int i = 0; i < width; i += section_size)
 	{
-		for(int j = 0; j < image.height; j += section_size)
+		for(int j = 0; j < height; j += section_size)
 		{
 			render_params_list_t *rp = (render_params_list_t *)malloc(sizeof(render_params_list_t));
 			rp->is_rendering = 0;
 			rp->next_ptr = NULL;
-			rp->current.image = image;
+			rp->current.width = width;
+			rp->current.height = height;
 			rp->current.tree_ptr = tree_ptr;
 			rp->current.lights_ptr = lights_ptr;
 			rp->current.sky_color = sky_color;
 			rp->current.x0 = i;
 			rp->current.y0 = j;
-			rp->current.x1 = min(i + section_size, image.width);
-			rp->current.y1 = min(j + section_size, image.height);
+			rp->current.x1 = min(i + section_size, width);
+			rp->current.y1 = min(j + section_size, height);
 			rp->current.aspect = aspect;
 			rp->current.scale_x = scale_x;
 			rp->current.scale_y = scale_y;
@@ -766,6 +770,8 @@ void Render(
 			rp->current.samples = samples;
 			rp->current.shadow_samples = shadow_samples;
 			rp->current.max_iterations = max_iterations;
+			rp->current.callback = callback;
+			rp->current.callback_data = callback_data;
 			if(last_ptr != NULL)
 				last_ptr->next_ptr = rp;
 			else
@@ -838,6 +844,22 @@ void Render(
 	
 }
 
+#ifdef INCLUDE_GUI
+int CmdRenderWindow(render_settings_t *rs)
+{
+	unsigned int width;
+	unsigned int height;
+	int count = fscanf(rs->input, "%u %u", &width, &height);
+	if (count < 2)
+	{
+		fprintf(stderr, "error: 'render' not enough arguments.\n");
+		return 1;
+	}
+	
+	WindowMain(rs, width, height);
+	return 1;
+}
+#endif
 
 int CmdQuit(render_settings_t *rs)
 {
@@ -1237,6 +1259,16 @@ int CmdRenderIterations(render_settings_t *rs)
 	return 1;
 }
 
+void RenderImageCallback(int x, int y, vector_t color, void *data)
+{
+	image_t *image_ptr = (image_t *)data;
+	int pixel_index = (x + y * image_ptr->width) * 4;
+	image_ptr->data[pixel_index + 0] = (unsigned char)(color.m[0] * 255);
+	image_ptr->data[pixel_index + 1] = (unsigned char)(color.m[1] * 255);
+	image_ptr->data[pixel_index + 2] = (unsigned char)(color.m[2] * 255);
+	image_ptr->data[pixel_index + 3] = (unsigned char)(255);
+}
+
 int CmdRender(render_settings_t *rs)
 {
 	unsigned int width;
@@ -1269,47 +1301,11 @@ int CmdRender(render_settings_t *rs)
 	start_time = end_time;
 	printf("info: elapsed time %f seconds.\n", elapsed_secs);
 	printf("info: rendering\n");
-	/*for(int i = 0; i < width; i ++)
-	{
-	for(int j = 0; j < height; j ++)
-	{
-	int index = (i + j * width) * 4;
-	vector_t average = vec4(0, 0, 0, 0);
-	for(int k = 0; k < samples; k ++)
-	{
-	for(int l = 0; l < samples; l ++)
-	{
-	vecc_t x = (vecc_t)(i - (int)width / 2) * scale_x
-	+ k * scale_x / samples;
-	vecc_t y = (vecc_t)((int)height / 2 - j) * scale_y
-	+ l * scale_y / samples;
-	vecc_t z = -focal_length;
-
-	ray_t ray = NewRay(vec3(0, 0, 0), vec3(x, y, z));
-
-	hit_t result = RayTree(ray, tree_ptr);
-	if(result.t > 0)
-	{
-	vector_t color = result.material_ptr->shader(result, lights_ptr);
-	color = VectorClamp(color);
-	average = VectorPlusVector(average, color);
-	}
-	else
-	{
-	average = VectorPlusVector(average, sky);
-	}
-	}
-	}
-	average = VectorTimesScalar(average, 1.0f / (samples * samples));
-	image[index + 0] = (unsigned char) (average.x * 255);
-	image[index + 1] = (unsigned char) (average.y * 255);
-	image[index + 2] = (unsigned char) (average.z * 255);
-	image[index + 3] = (unsigned char) (255);
-	}
-	} */
-
+	
 	Render(
-		image,
+		RenderImageCallback,
+		(void *)&image,
+		width, height,
 		tree_ptr,
 		rs->lights_ptr,
 		rs->sky,
@@ -1334,6 +1330,8 @@ int CmdRender(render_settings_t *rs)
 		printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
 	else
 		printf("okay\n");
+	
+	free((void *)image.data);
 	FreeTree(tree_ptr);
 	return 1;
 }
@@ -1425,6 +1423,9 @@ int main(int argc, char **argv)
 	SetCommand(table_cmds, "render_section_size", CmdRenderSectionSize);
 	SetCommand(table_cmds, "render_threads", CmdRenderThreads);
 	SetCommand(table_cmds, "render_iterations", CmdRenderIterations);
+#ifdef INCLUDE_GUI
+	SetCommand(table_cmds, "render_window", CmdRenderWindow);
+#endif
 	SetCommand(table_cmds, "render", CmdRender);
 	SetCommand(table_cmds, "print_triangles", CmdPrintTriangles);
 	SetCommand(table_cmds, "transform_pop", CmdTransformPop);
@@ -1477,7 +1478,6 @@ int main(int argc, char **argv)
 		{
 			printf("error: unknown command \"%s\"\n", cmd_str);
 		}
-		
 	}
 	printf("info: freeing memory...\n");
 	FreeMaterialList(rs->materials_ptr);

@@ -3,7 +3,7 @@ from trace import *
 
 print("-Demo 3-")
 
-trace = Trace(out_file="demo3.png", code_path="demo3.ray", sky_color=(0.25, 0, 0.25), quality=32)
+trace = Trace(out_file="demo3.png", sky_color=(0.25, 0, 0.25), quality=32)
 
 scene = Object(trace, [Location(0, 0, -8), Rotation(math.pi / 4, math.pi / 8, 0)])
 Sphere(trace, material=Material(trace, (1, 0, 0)), parent=scene)

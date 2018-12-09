@@ -52,20 +52,24 @@ typedef struct
 	unsigned int width, height;
 } image_t;
 
+typedef void (*pixel_traced_callback_t)(int x, int y, vector_t color, void *data);
+
 typedef struct render_params
 {
-	image_t image;
 	kd_tree_t *tree_ptr;
 	light_list_t *lights_ptr;
 	vector_t sky_color;
 	int x0, y0;
 	int x1, y1;
+	int width, height;
 	vecc_t aspect;
 	vecc_t scale_x, scale_y;
 	vecc_t focal_length;
 	int samples;
 	int shadow_samples;
 	int max_iterations;
+	pixel_traced_callback_t callback;
+	void *callback_data;
 } render_params_t;
 
 typedef vector_t (*shader_t)(
@@ -222,6 +226,9 @@ vector_t RandomVector(int axes);
 
 ray_t NewRay(vector_t o, vector_t d);
 
+kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth);
+void CleanTriangles(tri_list_t **triangles_ptr);
+
 int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri);
 int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr);
 int RayTree(hit_t *hit_ptr, ray_t ray, kd_tree_t *tree_ptr);
@@ -239,6 +246,24 @@ void FreeTriList(tri_list_t *list_ptr);
 void FreeTree(kd_tree_t *tree_ptr);
 void FreeMaterialList(mat_list_t *list_ptr);
 void FreeLightList(light_list_t *list_ptr);
+
+void RenderImageCallback(int x, int y, vector_t color, void *data);
+
+void Render(
+	pixel_traced_callback_t callback,
+	void *callback_data,
+	int width, int height,
+	kd_tree_t *tree_ptr,
+	light_list_t *lights_ptr,
+	vector_t sky_color,
+	int section_size,
+	vecc_t aspect,
+	vecc_t scale_x, vecc_t scale_y,
+	vecc_t focal_length,
+	int samples,
+	int shadow_samples,
+	int max_iterations,
+	int num_threads);
 
 #define PropGet(material_ptr, key)	HashTableGet((material_ptr)->table, key)->value
 #define PropGetOrInsert(material_ptr, key)	HashTableGetOrInsert((material_ptr)->table, key)->value
