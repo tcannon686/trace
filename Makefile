@@ -1,5 +1,5 @@
 
-OBJECTS = trace.o matrix.o lodepng.o shade.o hashtable.o xwin.o
+OBJECTS = trace.o matrix.o lodepng.o shade.o hashtable.o cmd.o xwin.o
 PROGRAM = trace.exe
 
 DEBUG_OPTIONS = -Wall -g
@@ -33,6 +33,9 @@ hashtable.o : hashtable.c hashtable.h
 
 xwin.o : xwin.c xwin.h
 	$(CC) -c xwin.c -o xwin.o $(OPTIONS)
+
+cmd.o : cmd.c cmd.h
+	$(CC) -c cmd.c -o cmd.o $(OPTIONS)
 
 lodepng.o : lodepng.c lodepng.h
 	$(CC) -c lodepng.c -o lodepng.o

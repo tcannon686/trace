@@ -73,14 +73,21 @@ typedef struct render_params
 } render_params_t;
 
 typedef vector_t (*shader_t)(
-	hit_t hit,
+	void *shader_data,
+	hit_t *hit,
 	render_params_t *rp_ptr,
 	int iteration,
 	int max_iterations);
 
+#define ShadeHit(hit, rp_ptr, iteration)\
+	VectorClamp(hit.material_ptr->shader(\
+		hit.material_ptr->shader_data, &hit,\
+		rp_ptr, iteration, rp_ptr->max_iterations));
+
 typedef struct material
 {
 	shader_t shader;
+	void *shader_data;
 	hashtable_t *table;
 } material_t;
 
@@ -264,6 +271,8 @@ void Render(
 	int shadow_samples,
 	int max_iterations,
 	int num_threads);
+
+void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
 
 #define PropGet(material_ptr, key)	HashTableGet((material_ptr)->table, key)->value
 #define PropGetOrInsert(material_ptr, key)	HashTableGetOrInsert((material_ptr)->table, key)->value
