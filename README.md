@@ -5,13 +5,13 @@ Trace is a simple raytracer I created. Its current target is Windows, but it sho
 Trace uses [Lode PNG](https://lodev.org/lodepng/) for PNG loading and writing.
 
 # Compiling
-Simply open the solution in Visual Studio and compile, or call make from the root directory. I used MinGW and VC++ 2017 to compile it.
+Simply open the solution in Visual Studio and compile, or run `make` from the root directory. I used MinGW, GCC, and VC++ 2017 to compile it. By default, the program does not compile with GUI support. Currently, only X is supported using the `render_window` command. To compile with the GUI components, run `make INCLUDE_GUI=true`.
 
 # Python Front End
 The program includes a simple Python front end that starts the C program to do the rendering. You can import the trace.py file to try try it out. Demos are also included, simply run python on demos.py or demo1.py, demo2.py, etc. They will output demo1.png, demo2.png, etc. More documentation is provided in the trace.py file.
 
 # C Console Application
-The C console back end application is responsible for handling the actual rendering. The application reads from stdin and executes commands to take in geometry. It outputs "info: %s\n" for simple info about rendering and "error: %s\n" for errors. Below is the specification for the commands.
+The C console back end application is responsible for handling the actual rendering. The application reads from stdin and executes commands to take in geometry. It outputs `info: %s\n` for simple info about rendering and `error: %s\n` for errors. Below is the specification for the commands. The program can also be run with an optional argument to read from a file.
 
 ## General Commands
 ### quit
@@ -22,6 +22,8 @@ Load commands from an external file.
 The location of the PNG file to save to.
 ### render <width> <height>
 Render an image of width and height and save it to out_file.
+### render_window <width> <height>
+Currently only supported on X systems and disabled by default. To enable, run `make INCLUDE_GUI=true`. This program displays a render window. The window will display the rendered image with the specified dimensions. The program will continue to run, even after the window is closed.
 
 ## Geometry
 ### vertex <x> <y> <z>
@@ -95,3 +97,4 @@ Sets the size of each section for each thread to render.
 Sets the number of threads to start for the render.
 ### render_iteration <count>
 Sets the maximum number of iterations for each reflection or refraction.
+
