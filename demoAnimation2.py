@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 
 from random import random, seed
 from trace import *
@@ -8,7 +9,7 @@ trace = Trace('demo4.png', sky_color=(0, 0, 0))
 animation = Animation(
     trace,
     start_frame=0,
-    end_frame=60,
+    end_frame=59,
     out_file="demoAnimation2.mp4", )
 scene = Object(trace, [Location(0, 0, -10)])
 

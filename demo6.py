@@ -1,4 +1,4 @@
-
+#!/usr/bin/python3
 """
 This is a demo of the so-called Menger Sponge
 (https://en.wikipedia.org/wiki/Menger_sponge).

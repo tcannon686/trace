@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from trace import *
 
 print("-Demo 2-")

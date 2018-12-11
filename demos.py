@@ -1,4 +1,4 @@
-
+#!/usr/bin/python3
 """
 This file runs all of the demo files.
 """

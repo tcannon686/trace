@@ -1,4 +1,4 @@
-
+#!/usr/bin/python3
 from random import random, seed
 from trace import *
 

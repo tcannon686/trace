@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from trace import *
 
 print("-Demo 3-")
@@ -25,11 +26,11 @@ animation = Animation(
 			rotation, 'x',
 			[
 				LinearKeyframe(0, 0),
-				LinearKeyframe(60, 2 * math.pi)
+				LinearKeyframe(120, 2 * math.pi)
 			])
 	],
 	start_frame=0,
-	end_frame=59,
+	end_frame=119,
 	out_file="demoAnimation3.mp4")
 
 animation.render()

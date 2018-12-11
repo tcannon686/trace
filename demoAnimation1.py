@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 
 from trace import *
 
@@ -25,7 +26,7 @@ animation = Animation(
 			])
 	],
 	start_frame=0,
-	end_frame = 60,
+	end_frame = 59,
 	out_file="demoAnimation1.mp4")
 
 animation.render()

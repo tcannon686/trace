@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 # Python binding
 """
 A geometry generator for Tom's Raytracer, a simple raytracer.
@@ -11,6 +13,8 @@ command line.
 import math
 import subprocess
 import sys
+import os
+import shutil
 
 class Traceable:
     """A basic traceable object, from which all generators inherit."""
