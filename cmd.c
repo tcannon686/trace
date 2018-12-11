@@ -390,7 +390,7 @@ int CmdRenderShadowSamples(render_settings_t *rs)
 	int count = fscanf(rs->input, "%i", &rs->shadow_samples);
 	if (count == 0)
 	{
-		fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
+		fprintf(stderr, "error: 'render_shadow_samples' not enough arguments.\n");
 		return 1;
 	}
 	return 1;
@@ -451,16 +451,29 @@ int CmdRender(render_settings_t *rs)
 
 	clock_t start_time, end_time;
 	float elapsed_secs;
+	
+	int max_depth = 0;
 
 	start_time = clock();
 
-	printf("info: generating tree\n");
+	printf("info: generating tree.\n");
 	CleanTriangles(&rs->triangles_ptr);
-	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0);
+	int tri_count = 0;
+	
+	for(tri_list_t *current = rs->triangles_ptr;
+		current != NULL;
+		current = current->next_ptr)
+	{
+		tri_count ++;
+	}
+	
+	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0, &max_depth);
 	end_time = clock();
 	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
 	start_time = end_time;
 	printf("info: elapsed time %f seconds.\n", elapsed_secs);
+	printf("info: tree depth %i.\n", max_depth);
+	printf("info: triangle count %i.\n", tri_count);
 	printf("info: rendering\n");
 	
 	Render(

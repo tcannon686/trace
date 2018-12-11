@@ -74,7 +74,7 @@ int WindowMain(render_settings_t *rs, int width, int height)
 	
 	printf("info: generating tree\n");
 	CleanTriangles(&rs->triangles_ptr);
-	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0);
+	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0, NULL);
 	
 	callback_data_t cd;
 	cd.display = display;

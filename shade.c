@@ -26,7 +26,7 @@ vector_t PhongShader(
 	vecc_t alpha = PropGet(hit_ptr->material_ptr, "alpha").number;
 	vecc_t ior = PropGet(hit_ptr->material_ptr, "ior").number;
 	int shadeless = PropGet(hit_ptr->material_ptr, "shadeless").integer;
-
+	
 	if(!shadeless)
 	{
 		while(cur_light_ptr != NULL)
@@ -69,17 +69,32 @@ vector_t PhongShader(
 			vector_t ray_start = VectorPlusVector(hit_ptr->position, VectorTimesScalar(hit_ptr->normal, THRESHOLD));
 			vector_t dir = VectorMinusVector(l.position, ray_start);
 			vector_t d;
-
-			for(int i = 0; i < rp_ptr->shadow_samples; i ++)
+			
+			if(rp_ptr->shadow_samples > 1)
+			{
+				for(int i = 0; i < rp_ptr->shadow_samples; i ++)
+				{
+					d = dir;
+					ray_t ray = NewRay(
+						ray_start,
+						VectorPlusVector(d, VectorTimesScalar(RandomVector(3), 0.5f)));
+					hit_t shadow_hit;
+					shadow_hit.t = INFINITY;
+			
+					if(RayTree(&shadow_hit, ray, hit_ptr->tree_ptr) &&
+						shadow_hit.t < 1.0 - THRESHOLD)
+						shadow -= shadow_sample_weight;
+				}
+			}
+			else if(rp_ptr->shadow_samples == 1)
 			{
 				d = dir;
 				ray_t ray = NewRay(
 					ray_start,
-					VectorPlusVector(d, VectorTimesScalar(RandomVector(3), 0.5f
-						* ((vecc_t) i / (vecc_t) rp_ptr->shadow_samples))));
+					d);
 				hit_t shadow_hit;
 				shadow_hit.t = INFINITY;
-				
+		
 				if(RayTree(&shadow_hit, ray, hit_ptr->tree_ptr) &&
 					shadow_hit.t < 1.0 - THRESHOLD)
 					shadow -= shadow_sample_weight;

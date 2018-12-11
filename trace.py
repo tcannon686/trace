@@ -4,7 +4,9 @@ A geometry generator for Tom's Raytracer, a simple raytracer.
 
 Contains classes that generate geometry: Trace, Traceable, Rotation,
 Location, Scale, Cube, Sphere, Plane, Material, Light. All generators
-must be attached to a Trace object, which handles rendering.
+must be attached to a Trace object, which handles rendering. The file also 
+includes a simple mechanism for rendering movies by running ffmpeg from the 
+command line.
 """
 import math
 import subprocess
@@ -389,7 +391,7 @@ class Trace:
         out_file = 'output.png', renderer_path = None,
         width=640, height=480, fov=70 * math.pi / 180, render_samples = 4,
         render_shadow_samples=1, render_threads=4, render_section_size=1000,
-        render_iterations=10, quality=16, sky_color = (0.25, 0.25, 0.25),
+        render_iterations=4, quality=16, sky_color = (0.25, 0.25, 0.25),
         code_path=None, render_window=False):
         """Creates a renderer from the following properties:
         renderer_path, out_file, width, height, fov, render_samples, render_threads,
@@ -452,6 +454,86 @@ class Trace:
         return subprocess.run(
             self.renderer_path,
             input=bytes(output, 'utf-8'))
+
+class Animator:
+	""" Animators can be used with the Animation class to render animations. 
+This requires ffmpeg be installed. This class is an abstract class, use 
+LinearAnimator to perform animations. target is the object to change the value
+of var in."""
+	def __init__(self, target, var):
+		self.target = target
+		self.var = var
+	
+	def getValue(self, frame):
+		return 0
+	
+	def move(self, frame):
+		self.target.__dict__[self.var] = self.getValue(frame)
+
+class LinearKeyframe():
+	def __init__(self, time, value):
+		self.time = time
+		self.value = value
+
+class LinearAnimator(Animator):
+	def __init__(self, target, var, frames):
+		super().__init__(target, var)
+		self.frames = frames
+	
+	def getValue(self, frame):
+		nextKeyframe = None
+		lastKeyframe = None
+		# Find which keyframes this is between
+		for keyframe in self.frames:
+			if keyframe.time <= frame:
+				if lastKeyframe != None:
+					if keyframe.time > lastKeyframe.time:
+						lastKeyframe = keyframe
+				else:
+					lastKeyframe = keyframe
+			elif keyframe.time >= frame:
+				if nextKeyframe != None:
+					if keyframe.time < nextKeyframe.time:
+						nextKeyframe = keyframe
+				else:
+					nextKeyframe = keyframe
+		if nextKeyframe == None or nextKeyframe.time == lastKeyframe.time:
+			return lastKeyframe.value
+		else:
+			return lastKeyframe.value\
+				+ (frame - lastKeyframe.time)\
+				* (nextKeyframe.value - lastKeyframe.value)\
+				/ (nextKeyframe.time - lastKeyframe.time)
+			
+
+class Animation:
+	"""A simple system for rendering animations. It works by rendering a series 
+of PNG files and then running ffmpeg to combine them into a move. This does 
+require ffmpeg be installed, and in the path."""
+	def __init__(self, trace, animators=[], start_frame=0, end_frame=0,
+		framerate=30, out_file="animation.avi"):
+		self.out_file = out_file
+		self.trace = trace
+		self.animators = animators
+		self.start_frame = start_frame
+		self.end_frame = end_frame
+		self.framerate = framerate
+		pass
+	
+	def render(self):
+		dirname = self.out_file.replace('.', '_')
+		os.mkdir(dirname)
+		for frame in range(self.start_frame, self.end_frame):
+			for animator in self.animators:
+				animator.move(frame)
+			self.trace.out_file = dirname + '/trace' + str(frame) + '.png'
+			self.trace.trace()
+		subprocess.run(['ffmpeg', '-f', 'image2',
+			'-framerate', str(self.framerate),
+			'-i', dirname + '/trace%d.png',
+			'-s', str(self.trace.width) + 'x' + str(self.trace.height),
+			self.out_file])
+		shutil.rmtree(dirname)
 
 
 

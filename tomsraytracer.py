@@ -4,16 +4,38 @@ import bpy
 from mathutils import Vector
 import subprocess
 
-renderer_path = 'C:/Users/thoma/Programming/TraceOld/trace.exe'
+from bpy.types import (
+            AddonPreferences,
+            PropertyGroup,
+            Operator)
+from bpy.props import (
+        StringProperty,
+        BoolProperty,
+        IntProperty,
+        FloatProperty,
+        FloatVectorProperty,
+        EnumProperty,
+        PointerProperty)
 
+class HelloWorldOperator(bpy.types.Operator):
+    bl_idname = "wm.hello_world"
+    bl_label = "Minimal Operator"
 
+    def execute(self, context):
+        print("Hello World")
+        return {'FINISHED'}
 
+bpy.utils.register_class(HelloWorldOperator)
+
+# test call to the newly defined operator
+bpy.ops.wm.hello_world()
+
+renderer_path = '/home/tcannon/Projects/trace/trace.exe'
 
 scene = bpy.context.scene
 
 output = ''
-
-output_path = 'C:/Users/thoma/Programming/TraceOld/monkey.ray'
+output_path = None
 
 camera_matrix = scene.camera.matrix_world.copy()
 camera_matrix.invert_safe()
@@ -25,6 +47,7 @@ last_material = None
 
 materials = []
 for material in bpy.data.materials:
+    output += 'make_material\n'
     output += 'mat_set_vector diffuse ' + vecstring(material.diffuse_color * material.diffuse_intensity) + '\n'
     output += 'mat_set_vector specular ' + vecstring(material.specular_color * material.specular_intensity) + '\n'
     output += 'mat_set_number shininess ' + str(material.specular_hardness) + '\n'
@@ -35,7 +58,6 @@ for material in bpy.data.materials:
         output += 'mat_set_integer shadeless 1\n'
     else:
         output += 'mat_set_integer shadeless 0\n'
-    output += 'make_material\n'
     materials.append(material)
 
 for object in scene.objects:
@@ -46,6 +68,7 @@ for object in scene.objects:
         for polygon in mesh.polygons:
             fn = (camera_matrix * object.matrix_world).to_3x3() * polygon.normal
             mat_index = materials.index(mesh.materials[polygon.material_index])
+            output += "make_face\n"
             if mat_index != last_material:
                 output += 'mat_index ' + str(mat_index) + '\n';
                 last_material = mat_index
@@ -57,19 +80,18 @@ for object in scene.objects:
                     normal = fn
                 output += "vertex " + vecstring(vertex) + "\n"
                 output += "normal " + vecstring(normal) + "\n"
-            output += "make_face\n"
         bpy.data.meshes.remove(mesh)
     elif object.type == 'LAMP':
-        position = camera_matrix * (object.matrix_world * Vector((0, 0, 0)))
-        output += 'light_position ' + vecstring(position) + '\n'
-        output += 'light_color ' + vecstring(object.data.color) + '\n'
-        output += 'light_energy ' + str(object.data.energy) + '\n'
-        output += 'light_distance ' + str(object.data.distance) + '\n'
         output += 'make_light\n'
+        position = camera_matrix * (object.matrix_world * Vector((0, 0, 0)))
+        output += 'light_set_vector position ' + vecstring(position) + '\n'
+        output += 'light_set_vector color ' + vecstring(object.data.color) + '\n'
+        output += 'light_set_number energy ' + str(object.data.energy) + '\n'
+        output += 'light_set_number distance ' + str(object.data.distance) + '\n'
 
 output += 'cam_fov ' + str(scene.camera.data.angle) + '\n'
 
-output += 'out_file C:/Users/thoma/Programming/TraceOld/output.png\n'
+output += 'out_file /home/tcannon/Projects/trace/output.png\n'
 sky = scene.world.horizon_color
 output += 'sky ' + vecstring(sky) + '\n'
 output += 'render_iterations 10\n'

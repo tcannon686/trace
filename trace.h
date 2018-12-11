@@ -233,7 +233,7 @@ vector_t RandomVector(int axes);
 
 ray_t NewRay(vector_t o, vector_t d);
 
-kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth);
+kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result);
 void CleanTriangles(tri_list_t **triangles_ptr);
 
 int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri);

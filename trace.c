@@ -31,41 +31,12 @@
 #define DEFAULT_OUTPUT "output.png"
 #define THRESHOLD 0.00001
 
-int halton_index = 20;
-
-vecc_t HaltonSequence(int i, int b)
-{
-	vecc_t f = 1.0;
-	vecc_t r = 0.0;
-	while(i > 0)
-	{
-		f = f / b;
-		r = r + f * (i % b);
-		i = floor(i / b);
-	}
-	
-	return r;
-}
-
-vecc_t NextHalton(int b)
-{
-	halton_index ++;
-	return HaltonSequence(halton_index, b);
-}
-
-void SeedHalton(int index)
-{
-	halton_index = index;
-}
-
-
 vector_t RandomVector(int axes)
 {
-	halton_index ++;
 	vector_t ret = vec2(0, 0);
 	for(int i = 0; i < axes; i ++)
 	{
-		ret.m[i] = 2 * HaltonSequence(halton_index, 2 + i) - 1;
+		ret.m[i] = 2 * ((vecc_t)rand() / RAND_MAX) - 1;
 	}
 	return ret;
 }
@@ -286,12 +257,21 @@ void CleanTriangles(tri_list_t **triangles_ptr)
 	}
 }
 
-kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
+/*
+ * Generates a tree and stores the maximum depth in depth_result.
+ */
+kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result) {
 
 	// Return nothing if no triangles are provided
 	if(triangles_ptr == NULL)
 		return NULL;
-
+	
+	if(depth_result != NULL)
+	{
+		if(depth >= *depth_result)
+			*depth_result = depth;
+	}
+	
 	kd_tree_t *tree_ptr = (kd_tree_t *)malloc(sizeof(kd_tree_t));
 	memset(tree_ptr, 0, sizeof(kd_tree_t));
 	tree_ptr->box = Expand(BoundingBoxTriList(triangles_ptr));
@@ -424,10 +404,10 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth) {
 		}
 	}
 
-	tree_ptr->left_ptr = GenerateTree(left_triangles_ptr, depth + 1);
+	tree_ptr->left_ptr = GenerateTree(left_triangles_ptr, depth + 1, depth_result);
 	if(tree_ptr->left_ptr != NULL)
 		tree_ptr->left_ptr->parent_ptr = tree_ptr;
-	tree_ptr->right_ptr = GenerateTree(right_triangles_ptr, depth + 1);
+	tree_ptr->right_ptr = GenerateTree(right_triangles_ptr, depth + 1, depth_result);
 	if(tree_ptr->right_ptr != NULL)
 		tree_ptr->right_ptr->parent_ptr = tree_ptr;
 	
