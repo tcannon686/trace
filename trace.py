@@ -52,8 +52,23 @@ class Location(Traceable):
     def toCode(self, quality):
         return 'transform_translate ' + str(self.x) + ' ' + str(self.y) + ' ' + str(self.z) + '\n'
 
+class Texture2d(Traceable):
+	def __init__(
+		self,
+		trace,
+		path):
+		self.trace = trace
+		self.trace.textures.append(self)
+		self.path = path
+	
+	def toCode(self, quality):
+		ret = ''
+		ret += 'load_image ' + self.path + '\n'
+		ret += 'make_texture_2d ' + str(self.trace.textures.index(self)) + '\n'
+		return ret
+
 class Material(Traceable):
-    """A material"""
+    """A material."""
     def __init__(
         self,
         trace,
@@ -63,7 +78,8 @@ class Material(Traceable):
         reflectiveness=0,
         alpha=1,
         ior=1,
-        shadeless=False):
+        shadeless=False,
+        tex_diffuse=None):
         """Create a material from the following values:
         diffuse, specular, shininess, reflectiveness, alpha,
         ior, shadeless. By default, the material is opaque white
@@ -75,6 +91,9 @@ class Material(Traceable):
         self.alpha = alpha
         self.ior = ior
         self.shadeless = shadeless
+        
+        self.tex_diffuse = tex_diffuse
+        
         self.trace = trace
         trace.materials.append(self)
         
@@ -91,6 +110,8 @@ class Material(Traceable):
             output += 'mat_set_integer shadeless 1\n'
         else:
             output += 'mat_set_integer shadeless 0\n'
+        if self.tex_diffuse != None:
+        	output += 'mat_set_texture_2d tex_diffuse ' + str(self.trace.textures.index(self.tex_diffuse)) + '\n'
         return output
 
 class Object(Traceable):
@@ -155,17 +176,23 @@ class Plane(Mesh):
 make_face
 vertex -0.5 0 -0.5
 normal 0 1 0
+texco_2d 0 0
 vertex 0.5 0 -0.5
 normal 0 1 0
+texco_2d 1 0
 vertex 0.5 0 0.5
 normal 0 1 0
+texco_2d 1 1
 make_face
 vertex 0.5 0 0.5
 normal 0 1 0
+texco_2d 1 1
 vertex -0.5 0 0.5
 normal 0 1 0
+texco_2d 0 1
 vertex -0.5 0 -0.5
 normal 0 1 0
+texco_2d 0 0
 """
         return ret
 
@@ -428,6 +455,7 @@ class Trace:
         self.sky_color = sky_color
         self.materials = []
         self.objects = []
+        self.textures = []
         self.code_path = code_path
         self.quality = quality
         self.defaultMaterial = Material(self)
@@ -435,6 +463,7 @@ class Trace:
     def trace(self):
         """Renders the scene. This will save the rendered image to out_path."""
         output = ''
+        output += ''.join([texture.toCode(self.quality) for texture in self.textures])
         output += ''.join([material.toCode(self.quality) for material in self.materials])
         output += ''.join([obj.toCode(self.quality) for obj in self.objects])
         output += 'cam_fov ' + str(self.fov) + '\n'

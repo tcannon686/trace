@@ -7,6 +7,7 @@
 
 #include "matrix.h"
 #include "hashtable.h"
+#include "linkedlist.h"
 #include "trace.h"
 #include "lodepng.h"
 #include "shade.h"
@@ -140,6 +141,26 @@ int CmdNormal(render_settings_t *rs)
 	return 1;
 }
 
+int CmdTexCo2d(render_settings_t *rs)
+{
+	vecc_t x, y;
+	vector_t co;
+
+	int count = fscanf(rs->input, "%lf %lf", &x, &y);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'texco2d' not enough arguments.\n");
+		return 1;
+	}
+	co = vec4(x, y, 0, 1);
+	rs->triangle_ptr->current.t[rs->current_texco] = co;
+	
+	rs->current_texco++;
+	if (rs->current_texco > 2)
+		rs->current_texco = 0;
+	return 1;
+}
+
 int CmdSky(render_settings_t *rs)
 {
 	vecc_t x, y, z;
@@ -173,16 +194,13 @@ int CmdCamFov(render_settings_t *rs)
 int CmdMatIndex(render_settings_t *rs)
 {
 	int index = 0;
-	mat_list_t *current_ptr = rs->materials_ptr;
 	int count = fscanf(rs->input, "%i", &index);
 	if (count == 0)
 	{
 		fprintf(stderr, "error: 'mat_index' not enough arguments.\n");
 		return 1;
 	}
-	for (int i = 0; i < index; i++)
-		current_ptr = current_ptr->next_ptr;
-	rs->current_material_ptr = &(current_ptr->current);
+	rs->current_material_ptr = (material_t *)ListGet(rs->materials_ptr, index).data_ptr;
 	return 1;
 }
 
@@ -196,7 +214,7 @@ int CmdMatSetNumber(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_set_number' not enough arguments.\n");
 		return 1;
 	}
-	PropGetOrInsert(&(rs->material_ptr->current), key).number = value;
+	PropGetOrInsert(rs->material_ptr, key).number = value;
 	return 1;
 }
 
@@ -210,7 +228,7 @@ int CmdMatSetInteger(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_set_integer' not enough arguments.\n");
 		return 1;
 	}
-	PropGetOrInsert(&(rs->material_ptr->current), key).integer = value;
+	PropGetOrInsert(rs->material_ptr, key).integer = value;
 	return 1;
 }
 
@@ -224,7 +242,22 @@ int CmdMatSetVector(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
 		return 1;
 	}
-	PropGetOrInsert(&(rs->material_ptr->current), key).vector = value;
+	PropGetOrInsert(rs->material_ptr, key).vector = value;
+	return 1;
+}
+
+int CmdMatSetTexture2d(render_settings_t *rs)
+{
+	char key[32];
+	int value;
+	int count = fscanf(rs->input, "%s %i", key, &value);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'mat_set_texture_2d' not enough arguments.\n");
+		return 1;
+	}
+	PropGetOrInsert(rs->material_ptr, key).pointer =
+		ListGet(rs->texture2ds_ptr, value).data_ptr;
 	return 1;
 }
 
@@ -234,11 +267,15 @@ int CmdMatShader(render_settings_t *rs)
 	int count = fscanf(rs->input, "%s", key);
 	if (count == 0)
 	{
-		fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
+		fprintf(stderr, "error: 'mat_shader' not enough arguments.\n");
 		return 1;
 	}
 	if (strcmp(key, "phong"))
-		rs->material_ptr->current.shader = PhongShader;
+		rs->material_ptr->shader = PhongShader;
+	else
+	{
+		fprintf(stderr, "error: '%s' shader not found.\n", key);
+	}
 	return 1;
 }
 
@@ -253,7 +290,7 @@ int CmdLightPosition(render_settings_t *rs)
 		return 1;
 	}
 	position = vec4(x, y, z, 1);
-	MatrixTimesVectorP(&rs->light_ptr->current.position, rs->transform_ptr, &position);
+	MatrixTimesVectorP(&rs->light_ptr->position, rs->transform_ptr, &position);
 	return 1;
 }
 
@@ -269,7 +306,7 @@ int CmdLightSetVector(render_settings_t *rs)
 		return 1;
 	}
 
-	PropGetOrInsert(&(rs->light_ptr->current), key).vector = vec3(x, y, z);
+	PropGetOrInsert(rs->light_ptr, key).vector = vec3(x, y, z);
 	return 1;
 }
 
@@ -285,7 +322,7 @@ int CmdLightSetNumber(render_settings_t *rs)
 		return 1;
 	}
 
-	PropGetOrInsert(&(rs->light_ptr->current), key).number = x;
+	PropGetOrInsert(rs->light_ptr, key).number = x;
 	return 1;
 }
 
@@ -301,19 +338,26 @@ int CmdLightSetInteger(render_settings_t *rs)
 		return 1;
 	}
 
-	PropGet(&(rs->light_ptr->current), key).integer = x;
+	PropGet(rs->light_ptr, key).integer = x;
 	return 1;
 }
 
 int CmdMakeMaterial(render_settings_t *rs)
 {
-	if(rs->material_ptr == NULL)
+	material_t *material_ptr = malloc(sizeof(material_t));
+	material_ptr->shader = PhongShader;
+	material_ptr->shader_data = NULL;
+	material_ptr->table = HashTableNewDefault();
+	rs->material_ptr = material_ptr;
+	rs->current_material_ptr = material_ptr;
+	ListAppend(rs->materials_ptr, (list_data_t)((void *)material_ptr));
+	/*if(rs->material_ptr == NULL)
 	{
-		rs->material_ptr = malloc(sizeof(mat_list_t));
+		material_t *material_ptr = malloc(sizeof(mat_list_t));
 		memset(rs->material_ptr, 0, sizeof(mat_list_t));
-		rs->material_ptr->current.shader = PhongShader;
-		rs->material_ptr->current.shader_data = NULL;
-		rs->material_ptr->current.table = HashTableNewDefault();
+		material_ptr->current.shader = PhongShader;
+		material_ptr->current.shader_data = NULL;
+		material_ptr->current.table = HashTableNewDefault();
 		rs->current_material_ptr = &rs->material_ptr->current;
 		rs->materials_ptr = rs->material_ptr;
 	}
@@ -326,27 +370,18 @@ int CmdMakeMaterial(render_settings_t *rs)
 		rs->material_ptr->current.shader = PhongShader;
 		rs->material_ptr->current.table = HashTableNewDefault();
 		rs->current_material_ptr = &rs->material_ptr->current;
-	}
+	}*/
 	return 1;
 }
 
 int CmdMakeLight(render_settings_t *rs)
 {
-	if(rs->light_ptr == NULL)
-	{
-		rs->light_ptr = malloc(sizeof(light_list_t));
-		memset(rs->light_ptr, 0, sizeof(light_list_t));
-		rs->light_ptr->current.table = HashTableNewDefault();
-		rs->lights_ptr = rs->light_ptr;
-	}
-	else
-	{
-		rs->light_ptr->next_ptr = malloc(sizeof(light_list_t));
-		memset(rs->light_ptr->next_ptr, 0, sizeof(light_list_t));
-		rs->light_ptr->next_ptr->last_ptr = rs->light_ptr;
-		rs->light_ptr = rs->light_ptr->next_ptr;
-		rs->light_ptr->current.table = HashTableNewDefault();
-	}
+	light_t *light_ptr;
+	light_ptr = (light_t *)malloc(sizeof(light_t));
+	memset(light_ptr, 0, sizeof(light_t));
+	light_ptr->table = HashTableNewDefault();
+	rs->light_ptr = light_ptr;
+	ListAppend(rs->lights_ptr, (list_data_t)((void *)light_ptr));
 	return 1;
 }
 
@@ -567,6 +602,7 @@ void CommandsSetStandard(hashtable_t *table_cmds)
 	SetCommand(table_cmds, "quit", CmdQuit);
 	SetCommand(table_cmds, "vertex", CmdVertex);
 	SetCommand(table_cmds, "normal", CmdNormal);
+	SetCommand(table_cmds, "texco_2d", CmdTexCo2d);
 	SetCommand(table_cmds, "make_face", CmdMakeFace);
 	SetCommand(table_cmds, "sky", CmdSky);
 	SetCommand(table_cmds, "cam_fov", CmdCamFov);
@@ -574,6 +610,7 @@ void CommandsSetStandard(hashtable_t *table_cmds)
 	SetCommand(table_cmds, "mat_set_number", CmdMatSetNumber);
 	SetCommand(table_cmds, "mat_set_integer", CmdMatSetInteger);
 	SetCommand(table_cmds, "mat_set_vector", CmdMatSetVector);
+	SetCommand(table_cmds, "mat_set_texture_2d", CmdMatSetTexture2d);
 	SetCommand(table_cmds, "mat_shader", CmdMatShader);
 	SetCommand(table_cmds, "light_position", CmdLightPosition);
 	SetCommand(table_cmds, "light_set_number", CmdLightSetNumber);

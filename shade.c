@@ -4,7 +4,9 @@
 #include <time.h>
 #include "matrix.h"
 #include "hashtable.h"
+#include "linkedlist.h"
 #include "trace.h"
+#include "texture.h"
 
 #define THRESHOLD			0.0001
 
@@ -17,7 +19,7 @@ vector_t PhongShader(
 	vector_t diffuse_color = vec3(0, 0, 0);
 	vector_t specular_color = vec3(0, 0, 0);
 	vector_t V = VectorNormalize(VectorNegate(hit_ptr->position));
-	light_list_t *cur_light_ptr = rp_ptr->lights_ptr;
+	light_t *cur_light_ptr;
 
 	vector_t diffuse = PropGet(hit_ptr->material_ptr, "diffuse").vector;
 	vector_t specular = PropGet(hit_ptr->material_ptr, "specular").vector;
@@ -27,11 +29,19 @@ vector_t PhongShader(
 	vecc_t ior = PropGet(hit_ptr->material_ptr, "ior").number;
 	int shadeless = PropGet(hit_ptr->material_ptr, "shadeless").integer;
 	
+	hashtable_entry_t *tex_diffuse =
+		HashTableGet(hit_ptr->material_ptr->table, "tex_diffuse");
+	if(tex_diffuse != NULL)
+	{
+		texture2d_t *tex_ptr = (texture2d_t *)tex_diffuse->value.pointer;
+		diffuse = Texture2dSample(tex_ptr, hit_ptr->texco);
+	}
+	
 	if(!shadeless)
 	{
-		while(cur_light_ptr != NULL)
+		ListIterate(rp_ptr->lights_ptr, &cur_light_ptr)
 		{
-			light_t l = cur_light_ptr->current;
+			light_t l = *cur_light_ptr;
 			vector_t Id, Is;
 			vector_t Lm = VectorMinusVector(l.position, hit_ptr->position);
 			vecc_t distance = VectorMagnitude(Lm);
@@ -106,7 +116,6 @@ vector_t PhongShader(
 			VectorClampP(&diffuse_color, &diffuse_color);
 			VectorPlusVectorP(&specular_color, &specular_color, &Is);
 			VectorClampP(&specular_color, &specular_color);
-			cur_light_ptr = cur_light_ptr->next_ptr;
 		}
 	}
 	else

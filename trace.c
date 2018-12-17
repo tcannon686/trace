@@ -19,10 +19,12 @@
 
 #include "matrix.h"
 #include "hashtable.h"
+#include "linkedlist.h"
 #include "trace.h"
 #include "lodepng.h"
 #include "shade.h"
 #include "cmd.h"
+#include "texture.h"
 
 #ifdef INCLUDE_GUI
 #include "xwin.h"
@@ -115,7 +117,6 @@ int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 	
 	
 	hit_ptr->t = d;
-	hit_ptr->normal = tri.normal;
 	hit_ptr->material_ptr = tri.material_ptr;
 	hit_ptr->position = pos;
 	hit_ptr->ray = *ray;
@@ -126,6 +127,13 @@ int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 			VectorPlusVector(
 				VectorTimesScalar(tri.n1, bary.y),
 				VectorTimesScalar(tri.n2, bary.z))));
+	
+	hit_ptr->texco =
+		VectorPlusVector(
+			VectorTimesScalar(tri.t0, bary.x),
+			VectorPlusVector(
+				VectorTimesScalar(tri.t1, bary.y),
+				VectorTimesScalar(tri.t2, bary.z)));
 	
 	return 1;
 }
@@ -436,24 +444,17 @@ void FreeTree(kd_tree_t *tree_ptr) {
 		FreeTree(tree_ptr->right_ptr);
 }
 
-void FreeMaterialList(mat_list_t *list_ptr) {
-	mat_list_t *next_ptr;
-	while(list_ptr != NULL) {
-		next_ptr = list_ptr->next_ptr;
-		HashTableFree(list_ptr->current.table);
-		free(list_ptr);
-		list_ptr = next_ptr;
-	}
+void MaterialFree(void *ptr) {
+	material_t *material_ptr = (material_t *)ptr;
+	HashTableFree(material_ptr->table);
+	free(ptr);
 }
 
-void FreeLightList(light_list_t *list_ptr) {
-	light_list_t *next_ptr;
-	while(list_ptr != NULL) {
-		next_ptr = list_ptr->next_ptr;
-		HashTableFree(list_ptr->current.table);
-		free(list_ptr);
-		list_ptr = next_ptr;
-	}
+void LightFree(void *ptr)
+{
+	light_t *light_ptr = (light_t *)ptr;
+	HashTableFree(light_ptr->table);
+	free(ptr);
 }
 
 vecc_t RayBox(ray_t *ray, bounding_box_t box)
@@ -711,7 +712,7 @@ void Render(
 	void *callback_data,
 	int width, int height,
 	kd_tree_t *tree_ptr,
-	light_list_t *lights_ptr,
+	list_t *lights_ptr,
 	vector_t sky_color,
 	int section_size,
 	vecc_t aspect,
@@ -848,6 +849,7 @@ int main(int argc, char **argv)
 {
 	hashtable_t *table_cmds = HashTableNewDefault();
 	CommandsSetStandard(table_cmds);
+	CommandsSetTexture(table_cmds);
 	
 	render_settings_t render_settings;
 	render_settings_t *rs = &render_settings;
@@ -856,13 +858,18 @@ int main(int argc, char **argv)
 	
 	rs->triangles_ptr = NULL;
 	rs->triangle_ptr = NULL;
-	rs->materials_ptr = NULL;
-	rs->material_ptr = NULL;
+	rs->materials_ptr = ListNew(MaterialFree, NULL);
 	rs->current_material_ptr = NULL;
-	rs->lights_ptr = NULL;
+	rs->lights_ptr = ListNew(LightFree, NULL);
 	rs->light_ptr = NULL;
+	rs->texture2ds_ptr = ListNew(Texture2dFree, NULL);
+	rs->texture2d_ptr = NULL;
+	rs->images_ptr = ListNew(ImageFree, NULL);
+	rs->image_ptr = NULL;
+	
 	rs->current_point = 0;
 	rs->current_normal = 0;
+	rs->current_texco = 0;
 	
 	rs->focal_length = 1;
 	rs->samples = 1;
@@ -895,8 +902,8 @@ int main(int argc, char **argv)
 		}
 	}
 	printf("info: freeing memory...\n");
-	FreeMaterialList(rs->materials_ptr);
-	FreeLightList(rs->lights_ptr);
+	ListFree(rs->materials_ptr);
+	ListFree(rs->lights_ptr);
 	HashTableFree(table_cmds);
 	printf("info: goodbye.\n");
 	return 0;

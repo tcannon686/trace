@@ -1,8 +1,8 @@
 
 # Trace
-Trace is a simple raytracer I created. Its current target is Windows, but it should be relatively easy to translate to Linux or Mac as the only platform specific code is for threading. It features a simple Python front end for creating images, but the C program can be used standalone. The program is not any more efficient than any other raytracer, nor any better, it was simply a learning experience to create something adequately speedy. It features some basic effects, including shadows, reflections, and refractions.
+Trace is a simple raytracer I created. Its current target is Linux and Windows, but it should be relatively easy to translate to Mac and other platforms as the only platform specific code is for threading and a very rudimentary GUI. It features a simple Python front end for creating images and videos, but the C program can be used standalone. The program does not aim to be any better than any other raytracer. It was simply a learning experience to create something moderately fast, although the whole process done on the CPU and it does not take advantage of the GPU whatsoever. It features some basic effects, including shadows, reflections, and refractions. My possible future plans for this project are to add more effects, create a script for Blender, switch to some kind of path tracing, and use OpenCL to speed up rendering.
 
-Trace uses [Lode PNG](https://lodev.org/lodepng/) for PNG loading and writing.
+Trace uses [LodePNG](https://lodev.org/lodepng/) for PNG loading and writing.
 
 # Compiling
 Simply open the solution in Visual Studio and compile, or run `make` from the root directory. I used MinGW, GCC, and VC++ 2017 to compile it. By default, the program does not compile with GUI support. Currently, only X is supported using the `render_window` command. To compile with the GUI components, run `make INCLUDE_GUI=true`.
@@ -11,7 +11,7 @@ Simply open the solution in Visual Studio and compile, or run `make` from the ro
 The program includes a simple Python front end that starts the C program to do the rendering. You can import the trace.py file to try try it out. Demos are also included, simply run python on demos.py or demo1.py, demo2.py, etc. They will output demo1.png, demo2.png, etc. More documentation is provided in the trace.py file.
 
 # C Console Application
-The C console back end application is responsible for handling the actual rendering. The application reads from stdin and executes commands to take in geometry. It outputs `info: %s\n` for simple info about rendering and `error: %s\n` for errors. Below is the specification for the commands. The program can also be run with an optional argument to read from a file.
+The C console back end application is responsible for handling the actual rendering. The application reads from stdin or a file and executes commands to take in geometry. It outputs `info: %s\n` for simple info about rendering and `error: %s\n` for errors. Below is the specification for the commands. The program can also be run with an optional argument to read from a file.
 
 ## General Commands
 ### quit
@@ -49,52 +49,58 @@ Multiply the current transformation matrix by a rotation matrix. Takes input in 
 
 
 ## Materials
+### mat_set_integer <key> <value>
+Set an integer key in the current material.
+### mat_set_number <key> <value>
+Set a number key in the current material.
+### mat_set_vector <key> <x> <y> <z>
+Set a vector key in the current material.
+### mat_set_texture <key> <texture_index>
+See textures below. Sets a texture key in the current material.
+### mat_shader phong
+Set what shader to use for the current material. Currently, only a simple phong shader is available. Different shaders use different keys in the material. See shaders below.
 ### mat_index <index>
-Sets the current material for following triangles.
-### mat_diffuse <r> <g> <b>
-Sets the diffuse color of the current material.
-### mat_specular <r> <g> <b>
-Sets the specular color of the current material.
-### mat_ambient <r> <g> <b>
-Sets the ambient color of the current material.
-### mat_shininess <shininess>
-Sets the shininess for the phong specular highlight of the current material.
-### mat_reflectiveness <reflectiveness>
-Sets the reflectiveness, from 0.0 to 1.0 of the current material.
-### mat_alpha <alpha>
-Sets the reflectiveness, from 0.0 to 1.0 of the current material.
-### mat_ior <ior>
-Sets the IOR of the current material.
-### mat_shadeless {1|0}
-Sets whether the current material will be shaded or not. Input of 1 will be shadeless, input of zero will be shaded.
+Set which material will be used for subsequent faces.
 ### make_material
 Create a new material and set it as the current material.
+
+## Textures
+Textures can be created and applied to objects.
+### load_image <filename>
+Load an image.
+### make_texture_2d <image_index>
+Make a texture from the loaded image at `image_index`.
 
 ## Light
 ### light_position <x> <y> <z>
 Sets the position of the current light.
-### light_color <r> <g> <b>
-Sets the color of the current light.
-### light_distance <distance>
-Sets the distance of the current light. At this distance, the intensity of the light will be at half its original value.
-### light_energy <energy>
-Sets the energy of the current light.
+### mat_set_integer <key> <value>
+Set an integer key in the current light.
+### mat_set_number <key> <value>
+Set a number key in the current light.
+### mat_set_vector <key> <x> <y> <z>
+Set a vector key in the current light.
 ### make_light
 Create a new light and set it as the current light.
 
 ## Camera
 ### cam_fov <angle>
-Sets the vertical FOV of the camera. Takes radians.
+Sets the vertical FOV of the camera in radians.
 
 ## Render Options
 ### sky <r> <g> <b>
 Sets the sky color.
 ### render_samples <samples>
-Sets the number of MSAA samples per pixel.
+Sets the number of super samples per pixel.
 ### render_section_size <size>
 Sets the size of each section for each thread to render.
 ### render_threads <count>
 Sets the number of threads to start for the render.
 ### render_iteration <count>
 Sets the maximum number of iterations for each reflection or refraction.
+
+## Shaders
+A shader is a function that handles shading an object and emitting more rays. Shaders may request different material data and light data. Currently, only a simple phong shader is available.
+### Phong Shader
+This shader is a very simple, however it supports a few simple effects, such as shadows, reflections, and refractions. The shader uses the following material vector attributes: `diffuse`, `specular`. It uses these number attributes: `shininess`, `reflectiveness`, `alpha`, `ior`. It also uses the integer attribute `shadeless`, and optional texture attribute `tex_diffuse`. It uses the following light number attributes: `energy`, `distance`.
 

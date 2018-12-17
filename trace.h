@@ -20,6 +20,7 @@ typedef struct
 	vecc_t t;
 	vector_t position;
 	vector_t normal;
+	vector_t texco;
 	material_t *material_ptr;
 	ray_t ray;
 	kd_tree_t *tree_ptr;
@@ -33,15 +34,6 @@ typedef struct
 	hashtable_t *table;
 } light_t;
 
-struct light_list;
-typedef struct light_list light_list_t;
-typedef struct light_list
-{
-	light_t current;
-	light_list_t *last_ptr;
-	light_list_t *next_ptr;
-} light_list_t;
-
 struct render_params_list;
 typedef struct render_params_list render_params_list_t;
 
@@ -52,12 +44,22 @@ typedef struct
 	unsigned int width, height;
 } image_t;
 
+typedef struct
+{
+	image_t *image_ptr;
+	enum
+	{
+		NEAREST_NEIGHBOR,
+		BILINEAR
+	} filter;
+} texture2d_t;
+
 typedef void (*pixel_traced_callback_t)(int x, int y, vector_t color, void *data);
 
 typedef struct render_params
 {
 	kd_tree_t *tree_ptr;
-	light_list_t *lights_ptr;
+	list_t *lights_ptr;
 	vector_t sky_color;
 	int x0, y0;
 	int x1, y1;
@@ -90,15 +92,6 @@ typedef struct material
 	void *shader_data;
 	hashtable_t *table;
 } material_t;
-
-struct mat_list;
-typedef struct mat_list mat_list_t;
-typedef struct mat_list
-{
-	material_t current;
-	mat_list_t *last_ptr;
-	mat_list_t *next_ptr;
-} mat_list_t;
 
 typedef struct
 {
@@ -135,6 +128,24 @@ typedef struct
 			vector_t na;
 			vector_t nb;
 			vector_t nc;
+		};
+	};
+	
+	union
+	{
+		vector_t t[3];
+		struct
+		{
+			vector_t t0;
+			vector_t t1;
+			vector_t t2;
+		};
+		
+		struct
+		{
+			vector_t ta;
+			vector_t tb;
+			vector_t tc;
 		};
 	};
 	
@@ -207,13 +218,18 @@ typedef struct render_settings
 	vector_t sky;
 	tri_list_t *triangles_ptr;
 	tri_list_t *triangle_ptr;
-	mat_list_t *materials_ptr;
-	mat_list_t *material_ptr;
+	list_t *materials_ptr;
+	material_t *material_ptr;
 	material_t *current_material_ptr;
-	light_list_t *lights_ptr;
-	light_list_t *light_ptr;
+	list_t *lights_ptr;
+	light_t *light_ptr;
+	list_t *texture2ds_ptr;
+	texture2d_t *texture2d_ptr;
+	list_t *images_ptr;
+	image_t *image_ptr;
 	int current_point;
 	int current_normal;
+	int current_texco;
 	vecc_t focal_length;
 	int samples;
 	int shadow_samples;
@@ -251,8 +267,6 @@ void PrintTriangles(tri_list_t *triangles_ptr);
 
 void FreeTriList(tri_list_t *list_ptr);
 void FreeTree(kd_tree_t *tree_ptr);
-void FreeMaterialList(mat_list_t *list_ptr);
-void FreeLightList(light_list_t *list_ptr);
 
 void RenderImageCallback(int x, int y, vector_t color, void *data);
 
@@ -261,7 +275,7 @@ void Render(
 	void *callback_data,
 	int width, int height,
 	kd_tree_t *tree_ptr,
-	light_list_t *lights_ptr,
+	list_t *lights_ptr,
 	vector_t sky_color,
 	int section_size,
 	vecc_t aspect,
