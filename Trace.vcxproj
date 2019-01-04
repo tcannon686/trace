@@ -106,6 +106,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="cmd.c" />
     <ClCompile Include="hashtable.c" />
     <ClCompile Include="lodepng.c" />
     <ClCompile Include="matrix.c" />
@@ -113,9 +114,9 @@
     <ClCompile Include="trace.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cmd.h" />
     <ClInclude Include="hashtable.h" />
     <ClInclude Include="lodepng.h" />
-    <ClInclude Include="luamatrix.h" />
     <ClInclude Include="matrix.h" />
     <ClInclude Include="shade.h" />
     <ClInclude Include="trace.h" />
