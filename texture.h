@@ -6,4 +6,5 @@ vector_t Texture2dSample(texture2d_t *tex_ptr, vector_t co);
 void CommandsSetTexture(hashtable_t *table_cmds);
 void Texture2dFree(void *ptr);
 void ImageFree(void *ptr);
+image_t *ImageNew(unsigned int width, unsigned int height);
 

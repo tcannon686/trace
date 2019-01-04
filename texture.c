@@ -114,18 +114,16 @@ int CmdMakeTexture2d(render_settings_t *rs)
  */
 int CmdMakeImage(render_settings_t *rs)
 {
-	int count, width, height;
-	count = fscanf(rs->input, "%i %i", &width, &height);
+	int count;
+	unsigned int width, height;
+	count = fscanf(rs->input, "%u %u", &width, &height);
 	if(count == 0)
 	{
 		fprintf(stderr, "error: 'make_image' not enough arguments.\n");
 		return 1;
 	}
-	image_t *image_ptr = (image_t *)malloc(sizeof(image_t));
-	image_ptr->data = malloc(4 * image_ptr->width * image_ptr->height);
-	image_ptr->width = width;
-	image_ptr->height = height;
-	memset(&image_ptr->data, 0, 4 * image_ptr->width * image_ptr->height);
+	
+	image_t *image_ptr = ImageNew(width, height);
 	
 	ListAppend(rs->images_ptr, (list_data_t)((void *)image_ptr));
 	rs->image_ptr = image_ptr;
@@ -133,10 +131,48 @@ int CmdMakeImage(render_settings_t *rs)
 	return 1;
 }
 
+
+int CmdImageWrite(render_settings_t *rs)
+{
+	int image_index;
+	char out_file[255];
+	image_t *image_ptr;
+	int count = fscanf(rs->input, "%i %s", &image_index, out_file);
+	if (count < 2)
+	{
+		fprintf(stderr, "error: 'image_write' not enough arguments.\n");
+		return 1;
+	}
+
+	image_ptr = (image_t *)ListGet(rs->images_ptr, image_index).data_ptr;
+	
+	printf("info: saving file '%s'.\n", out_file);
+	unsigned error = lodepng_encode32_file(
+		out_file,
+		image_ptr->data, image_ptr->width, image_ptr->height);
+
+	/*if there's an error, display it*/
+	if (error)
+		printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
+	else
+		printf("okay\n");
+	return 1;
+}
+
+image_t *ImageNew(unsigned int width, unsigned int height)
+{
+	image_t *image_ptr = (image_t *)malloc(sizeof(image_t));
+	image_ptr->width = width;
+	image_ptr->height = height;
+	image_ptr->data = malloc(4 * image_ptr->width * image_ptr->height);
+	memset(image_ptr->data, 0, 4 * image_ptr->width * image_ptr->height);
+	return image_ptr;
+}
+
 /*
  * Loads an image from the specified file.
  */
-int CmdLoadImage(render_settings_t *rs)
+int CmdImageLoad(render_settings_t *rs)
 {
 	int count, error;
 	char filename[64];
@@ -144,7 +180,7 @@ int CmdLoadImage(render_settings_t *rs)
 	
 	if(count == 0)
 	{
-		fprintf(stderr, "error: 'load_image' not enough arguments.\n");
+		fprintf(stderr, "error: 'image_load' not enough arguments.\n");
 		return 1;
 	}
 	
@@ -168,11 +204,45 @@ int CmdLoadImage(render_settings_t *rs)
 	return 1;
 }
 
+int CmdImageSetPixel(render_settings_t *rs)
+{
+	int count;
+	int image_index;
+	unsigned int x, y;
+	vector_t color;
+	count = fscanf(rs->input, "%i %u %u %lf %lf %lf %lf", &image_index,  &x, &y,
+		&color.x, &color.y, &color.z, &color.w);
+	if(count == 0)
+	{
+		fprintf(stderr, "error: 'image_set_pixel' not enough arguments.\n");
+		return 1;
+	}
+	
+	image_t *image_ptr = (image_t *)ListGet(rs->images_ptr, image_index).data_ptr;
+	
+	if(x >= image_ptr->width || x <= 0 || y >= image_ptr->height || y <= 0)
+	{
+		fprintf(stderr, "error: 'image_set_pixel' coordinate out of bounds.\n");
+		return 1;
+	}
+	
+	int index = (x + y * image_ptr->width) * 4;
+	
+	image_ptr->data[index + 0] = (unsigned char)(color.x * 255);
+	image_ptr->data[index + 1] = (unsigned char)(color.y * 255);
+	image_ptr->data[index + 2] = (unsigned char)(color.z * 255);
+	image_ptr->data[index + 3] = (unsigned char)(color.w * 255);
+	
+	return 1;
+}
+
 void CommandsSetTexture(hashtable_t *table_cmds)
 {
 	SetCommand(table_cmds, "make_texture_2d", CmdMakeTexture2d);
 	SetCommand(table_cmds, "make_image", CmdMakeImage);
-	SetCommand(table_cmds, "load_image", CmdLoadImage);
+	SetCommand(table_cmds, "image_load", CmdImageLoad);
+	SetCommand(table_cmds, "image_write", CmdImageWrite);
+	SetCommand(table_cmds, "image_set_pixel", CmdImageSetPixel);
 }
 
 

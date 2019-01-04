@@ -11,7 +11,9 @@
 #include "trace.h"
 #include "lodepng.h"
 #include "shade.h"
+#include "xwin.h"
 #include "cmd.h"
+#include "halton.h"
 
 
 #ifdef INCLUDE_GUI
@@ -22,7 +24,7 @@ int CmdRenderWindow(render_settings_t *rs)
 	int count = fscanf(rs->input, "%u %u", &width, &height);
 	if (count < 2)
 	{
-		fprintf(stderr, "error: 'render' not enough arguments.\n");
+		fprintf(stderr, "error: 'render_window' not enough arguments.\n");
 		return 1;
 	}
 	
@@ -161,18 +163,66 @@ int CmdTexCo2d(render_settings_t *rs)
 	return 1;
 }
 
-int CmdSky(render_settings_t *rs)
+int CmdSceneSkyColor(render_settings_t *rs)
 {
 	vecc_t x, y, z;
 
 	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
 	if (count == 0)
 	{
-		fprintf(stderr, "error: 'sky' not enough arguments.\n");
+		fprintf(stderr, "error: 'scene_sky_color' not enough arguments.\n");
 		return 1;
 	}
 
-	rs->sky = vec4(x, y, z, 1);
+	rs->scene_ptr->sky_color = vec4(x, y, z, 1);
+	return 1;
+}
+
+int CmdSceneSetVector(render_settings_t *rs)
+{
+	char key[32];
+	vecc_t x, y, z;
+
+	int count = fscanf(rs->input, "%s %lf %lf %lf", key, &x, &y, &z);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'scene_set_vector' not enough arguments.\n");
+		return 1;
+	}
+
+	PropGetOrInsert(rs->scene_ptr, key).vector = vec3(x, y, z);
+	return 1;
+}
+
+int CmdSceneSetNumber(render_settings_t *rs)
+{
+	char key[32];
+	vecc_t x;
+
+	int count = fscanf(rs->input, "%s %lf", key, &x);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'scene_set_number' not enough arguments.\n");
+		return 1;
+	}
+
+	PropGetOrInsert(rs->scene_ptr, key).number = x;
+	return 1;
+}
+
+int CmdSceneSetInteger(render_settings_t *rs)
+{
+	char key[32];
+	int x;
+
+	int count = fscanf(rs->input, "%s %i", key, &x);
+	if (count == 0)
+	{
+		fprintf(stderr, "error: 'scene_set_integer' not enough arguments.\n");
+		return 1;
+	}
+
+	PropGetOrInsert(rs->scene_ptr, key).integer = x;
 	return 1;
 }
 
@@ -338,7 +388,7 @@ int CmdLightSetInteger(render_settings_t *rs)
 		return 1;
 	}
 
-	PropGet(rs->light_ptr, key).integer = x;
+	PropGetOrInsert(rs->light_ptr, key).integer = x;
 	return 1;
 }
 
@@ -397,12 +447,6 @@ int CmdInFile(render_settings_t *rs)
 	return 1;
 }
 
-int CmdOutFile(render_settings_t *rs)
-{
-	fscanf(rs->input, "%s", rs->out_file);
-	return 1;
-}
-
 int CmdInStdIn(render_settings_t *rs)
 {
 	rs->input = stdin;
@@ -415,17 +459,6 @@ int CmdRenderSamples(render_settings_t *rs)
 	if (count == 0)
 	{
 		fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
-		return 1;
-	}
-	return 1;
-}
-
-int CmdRenderShadowSamples(render_settings_t *rs)
-{
-	int count = fscanf(rs->input, "%i", &rs->shadow_samples);
-	if (count == 0)
-	{
-		fprintf(stderr, "error: 'render_shadow_samples' not enough arguments.\n");
 		return 1;
 	}
 	return 1;
@@ -467,22 +500,23 @@ int CmdRenderIterations(render_settings_t *rs)
 
 int CmdRender(render_settings_t *rs)
 {
-	unsigned int width;
-	unsigned int height;
-	image_t image;
-	int count = fscanf(rs->input, "%u %u", &width, &height);
-	if (count < 2)
+	int image_index;
+	image_t *image_ptr;
+	int count = fscanf(rs->input, "%i", &image_index);
+	if (count < 1)
 	{
 		fprintf(stderr, "error: 'render' not enough arguments.\n");
 		return 1;
 	}
+	
+	image_ptr = (image_t *)ListGet(rs->images_ptr, image_index).data_ptr;
+	unsigned int width = image_ptr->width, height=image_ptr->height;
 
 	vecc_t aspect = (vecc_t)height / (vecc_t)width;
 	vecc_t scale_x = 2 / (vecc_t)width;
 	vecc_t scale_y = -aspect * 2 / (vecc_t)height;
-	image.width = width;
-	image.height = height;
-	image.data = (unsigned char *)malloc(width * height * 4);
+	
+	
 
 	clock_t start_time, end_time;
 	float elapsed_secs;
@@ -513,35 +547,64 @@ int CmdRender(render_settings_t *rs)
 	
 	Render(
 		RenderImageCallback,
-		(void *)&image,
+		(void *)image_ptr,
 		width, height,
+		IdentityMatrix(),
 		tree_ptr,
 		rs->lights_ptr,
-		rs->sky,
+		rs->scene_ptr,
 		rs->section_size,
 		aspect,
 		scale_x, scale_y,
 		rs->focal_length,
 		rs->samples,
-		rs->shadow_samples,
 		rs->max_iterations,
 		rs->threads);
 
 	end_time = clock();
 	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
 	printf("info: elapsed time %f seconds.\n", elapsed_secs);
-
-	printf("info: saving file '%s'.\n", rs->out_file);
-	unsigned error = lodepng_encode32_file(rs->out_file, image.data, width, height);
-
-	/*if there's an error, display it*/
-	if (error)
-		printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
-	else
-		printf("okay\n");
 	
-	free((void *)image.data);
 	FreeTree(tree_ptr);
+	ListFree(rs->materials_ptr);
+	ListFree(rs->lights_ptr);
+	ListFree(rs->texture2ds_ptr);
+	rs->texture2ds_ptr = NULL;
+	rs->materials_ptr = NULL;
+	rs->lights_ptr = NULL;
+	return 1;
+}
+
+static int _halton_i = 0;
+
+int CmdHalton(render_settings_t *rs)
+{
+	int image_index, number;
+	image_t *image_ptr;
+	int count = fscanf(rs->input, "%i %i", &image_index, &number);
+	if (count < 1)
+	{
+		fprintf(stderr, "error: 'halton' not enough arguments.\n");
+		return 1;
+	}
+	
+	image_ptr = (image_t *)ListGet(rs->images_ptr, image_index).data_ptr;
+	
+	for(int i = 0; i < number; i ++)
+	{
+		double x = Halton(2, _halton_i);
+		double y = Halton(3, _halton_i);
+		_halton_i ++;
+		
+		int index = (
+			(int)(x * image_ptr->width) +
+			(int)(y * image_ptr->height) * image_ptr->width) * 4;
+		
+		image_ptr->data[index] = 0xFF;
+		image_ptr->data[index + 1] = 0xFF;
+		image_ptr->data[index + 2] = 0xFF;
+		image_ptr->data[index + 3] = 0xFF;
+	}
 	return 1;
 }
 
@@ -604,7 +667,10 @@ void CommandsSetStandard(hashtable_t *table_cmds)
 	SetCommand(table_cmds, "normal", CmdNormal);
 	SetCommand(table_cmds, "texco_2d", CmdTexCo2d);
 	SetCommand(table_cmds, "make_face", CmdMakeFace);
-	SetCommand(table_cmds, "sky", CmdSky);
+	SetCommand(table_cmds, "scene_sky_color", CmdSceneSkyColor);
+	SetCommand(table_cmds, "scene_set_number", CmdSceneSetNumber);
+	SetCommand(table_cmds, "scene_set_integer", CmdSceneSetInteger);
+	SetCommand(table_cmds, "scene_set_vector", CmdSceneSetVector);
 	SetCommand(table_cmds, "cam_fov", CmdCamFov);
 	SetCommand(table_cmds, "mat_index", CmdMatIndex);
 	SetCommand(table_cmds, "mat_set_number", CmdMatSetNumber);
@@ -619,10 +685,8 @@ void CommandsSetStandard(hashtable_t *table_cmds)
 	SetCommand(table_cmds, "make_material", CmdMakeMaterial);
 	SetCommand(table_cmds, "make_light", CmdMakeLight);
 	SetCommand(table_cmds, "in_file", CmdInFile);
-	SetCommand(table_cmds, "out_file", CmdOutFile);
 	SetCommand(table_cmds, "in_stdin", CmdInStdIn);
 	SetCommand(table_cmds, "render_samples", CmdRenderSamples);
-	SetCommand(table_cmds, "render_shadow_samples", CmdRenderShadowSamples);
 	SetCommand(table_cmds, "render_section_size", CmdRenderSectionSize);
 	SetCommand(table_cmds, "render_threads", CmdRenderThreads);
 	SetCommand(table_cmds, "render_iterations", CmdRenderIterations);
@@ -630,6 +694,7 @@ void CommandsSetStandard(hashtable_t *table_cmds)
 	SetCommand(table_cmds, "render_window", CmdRenderWindow);
 #endif
 	SetCommand(table_cmds, "render", CmdRender);
+	SetCommand(table_cmds, "halton", CmdHalton);
 	SetCommand(table_cmds, "print_triangles", CmdPrintTriangles);
 	SetCommand(table_cmds, "transform_pop", CmdTransformPop);
 	SetCommand(table_cmds, "transform_push", CmdTransformPush);

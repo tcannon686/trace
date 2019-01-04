@@ -14,20 +14,29 @@ vector_t PhongShader(
 	void *shader_data,
 	hit_t *hit_ptr,
 	render_params_t *rp_ptr,
+	int sample, int max_samples,
 	int iteration, int max_iterations)
 {
 	vector_t diffuse_color = vec3(0, 0, 0);
 	vector_t specular_color = vec3(0, 0, 0);
+	vector_t ambient_color;
 	vector_t V = VectorNormalize(VectorNegate(hit_ptr->position));
 	light_t *cur_light_ptr;
-
+	
+	vector_t ambient = PropGetOrDefault(rp_ptr->scene_ptr, "ambient", vec4(0, 0, 0, 0)).vector;
+	int ao_samples = PropGetOrDefault(rp_ptr->scene_ptr, "ao_samples", 0).integer;
+	vecc_t ao_distance = PropGetOrDefault(rp_ptr->scene_ptr, "ao_distance", 1.0).number;
+	int shadow_samples = PropGetOrDefault(rp_ptr->scene_ptr, "shadow_samples", 1).integer;
+	
 	vector_t diffuse = PropGet(hit_ptr->material_ptr, "diffuse").vector;
+	vector_t m_ambient = PropGetOrDefault(hit_ptr->material_ptr, "ambient", vec4(1, 1, 1, 1)).vector;
 	vector_t specular = PropGet(hit_ptr->material_ptr, "specular").vector;
 	vecc_t shininess = PropGet(hit_ptr->material_ptr, "shininess").number;
 	vecc_t reflectiveness = PropGet(hit_ptr->material_ptr, "reflectiveness").number;
 	vecc_t alpha = PropGet(hit_ptr->material_ptr, "alpha").number;
 	vecc_t ior = PropGet(hit_ptr->material_ptr, "ior").number;
 	int shadeless = PropGet(hit_ptr->material_ptr, "shadeless").integer;
+	ambient_color = ambient;
 	
 	hashtable_entry_t *tex_diffuse =
 		HashTableGet(hit_ptr->material_ptr->table, "tex_diffuse");
@@ -37,16 +46,49 @@ vector_t PhongShader(
 		diffuse = Texture2dSample(tex_ptr, hit_ptr->texco);
 	}
 	
+	// A point slightly off the surface of the intersection.
+	vector_t ray_start =
+		VectorPlusVector(hit_ptr->position,
+			VectorTimesScalar(hit_ptr->normal, THRESHOLD));
+	
 	if(!shadeless)
 	{
+		// Ambient occlusion
+		if(ao_samples > 0 && (m_ambient.x > 0 || m_ambient.y > 0 || m_ambient.z > 0))
+		{
+			int occlude_count = 0;
+			for(int i = 0; i < ao_samples; i ++)
+			{
+				vector_t d;
+				// Find a random vector on the hemisphere.
+				do d = RandomVector(3);
+				while(VectorDotVector(d, hit_ptr->normal) < 0);
+				
+				ray_t ray = NewRay(
+					ray_start,
+					d);
+				
+				hit_t ambient_hit;
+				ambient_hit.t = INFINITY;
+				if(RayTree(&ambient_hit, ray, hit_ptr->tree_ptr)
+					&& ambient_hit.t <= ao_distance)
+					occlude_count ++;
+			}
+			ambient_color = VectorTimesScalar(ambient_color, 1.0 - (vecc_t) occlude_count / ao_samples);
+		}
+		ambient_color = VectorTimesVector(ambient_color, m_ambient);
+		
+		// For each light.
 		ListIterate(rp_ptr->lights_ptr, &cur_light_ptr)
 		{
 			light_t l = *cur_light_ptr;
 			vector_t Id, Is;
 			vector_t Lm = VectorMinusVector(l.position, hit_ptr->position);
 			vecc_t distance = VectorMagnitude(Lm);
-			vecc_t l_distance = PropGet(&l, "distance").number;
-			vecc_t l_energy = PropGet(&l, "energy").number;
+			vecc_t l_distance = PropGetOrDefault(&l, "distance", 30.0).number;
+			vecc_t l_energy = PropGetOrDefault(&l, "energy", 1.0).number;
+			vecc_t l_soft_size = PropGetOrDefault(&l, "soft_size", 0.25).number;
+			int l_enable_shadows = PropGetOrDefault(&l, "enable_shadows", 1).integer;
 			vecc_t attenuation = l_energy * (l_distance / (l_distance + distance));
 			Lm = VectorTimesScalar(Lm, 1.0 / distance);
 			vector_t N = hit_ptr->normal;
@@ -75,19 +117,36 @@ vector_t PhongShader(
 		
 		
 			vecc_t shadow = 1.0;
-			vecc_t shadow_sample_weight = 1.0 / rp_ptr->shadow_samples;
-			vector_t ray_start = VectorPlusVector(hit_ptr->position, VectorTimesScalar(hit_ptr->normal, THRESHOLD));
+			vecc_t shadow_sample_weight = 1.0 / shadow_samples;
 			vector_t dir = VectorMinusVector(l.position, ray_start);
 			vector_t d;
 			
-			if(rp_ptr->shadow_samples > 1)
+			if(l_enable_shadows)
 			{
-				for(int i = 0; i < rp_ptr->shadow_samples; i ++)
+				if(shadow_samples > 1 && l_soft_size > 0)
+				{
+					for(int i = 0; i < shadow_samples; i ++)
+					{
+						d = dir;
+						ray_t ray = NewRay(
+							ray_start,
+							VectorPlusVector(
+								d,
+								VectorTimesScalar(RandomVector(3), l_soft_size)));
+						hit_t shadow_hit;
+						shadow_hit.t = INFINITY;
+				
+						if(RayTree(&shadow_hit, ray, hit_ptr->tree_ptr) &&
+							shadow_hit.t < 1.0 - THRESHOLD)
+							shadow -= shadow_sample_weight;
+					}
+				}
+				else if(shadow_samples == 1)
 				{
 					d = dir;
 					ray_t ray = NewRay(
 						ray_start,
-						VectorPlusVector(d, VectorTimesScalar(RandomVector(3), 0.5f)));
+						d);
 					hit_t shadow_hit;
 					shadow_hit.t = INFINITY;
 			
@@ -95,19 +154,6 @@ vector_t PhongShader(
 						shadow_hit.t < 1.0 - THRESHOLD)
 						shadow -= shadow_sample_weight;
 				}
-			}
-			else if(rp_ptr->shadow_samples == 1)
-			{
-				d = dir;
-				ray_t ray = NewRay(
-					ray_start,
-					d);
-				hit_t shadow_hit;
-				shadow_hit.t = INFINITY;
-		
-				if(RayTree(&shadow_hit, ray, hit_ptr->tree_ptr) &&
-					shadow_hit.t < 1.0 - THRESHOLD)
-					shadow -= shadow_sample_weight;
 			}
 		
 			VectorTimesScalarP(&Id, &Id, shadow);
@@ -117,6 +163,7 @@ vector_t PhongShader(
 			VectorPlusVectorP(&specular_color, &specular_color, &Is);
 			VectorClampP(&specular_color, &specular_color);
 		}
+		diffuse_color = VectorPlusVector(diffuse_color, ambient_color);
 	}
 	else
 	{
@@ -126,16 +173,18 @@ vector_t PhongShader(
 	if(reflectiveness > 0 && iteration < max_iterations)
 	{
 		hit_t reflect_hit;
-		vector_t reflect_color = rp_ptr->sky_color;
+		vector_t reflect_color = rp_ptr->scene_ptr->sky_color;
 		reflect_hit.t = INFINITY;
 		reflect_hit.tree_ptr = hit_ptr->tree_ptr;
-		vector_t R = VectorReflect(VectorNormalize(VectorNegate(hit_ptr->ray.d)), hit_ptr->normal);
+		vector_t R = VectorReflect(
+			VectorNormalize(VectorNegate(hit_ptr->ray.d)),
+			hit_ptr->normal);
 		ray_t ray = NewRay(
 			VectorPlusVector(hit_ptr->position, VectorTimesScalar(R, THRESHOLD)),
 			R);
 		if(RayTree(&reflect_hit, ray, reflect_hit.tree_ptr))
 		{
-			reflect_color = ShadeHit(reflect_hit, rp_ptr, iteration + 1);
+			reflect_color = ShadeHit(reflect_hit, rp_ptr, sample, iteration + 1);
 		}
 		VectorClampP(&reflect_color, &reflect_color);
 		diffuse_color = VectorMix(diffuse_color, reflect_color, reflectiveness);
@@ -144,7 +193,7 @@ vector_t PhongShader(
 	if(alpha < 1 && iteration < max_iterations)
 	{
 		hit_t refract_hit;
-		vector_t refract_color = rp_ptr->sky_color;
+		vector_t refract_color = rp_ptr->scene_ptr->sky_color;
 		refract_hit.t = INFINITY;
 		refract_hit.tree_ptr = hit_ptr->tree_ptr;
 		vector_t d;
@@ -183,15 +232,12 @@ vector_t PhongShader(
 		
 		if(RayTree(&refract_hit, ray, refract_hit.tree_ptr))
 		{
-			refract_color = ShadeHit(refract_hit, rp_ptr, iteration + 1);
+			refract_color = ShadeHit(refract_hit, rp_ptr, sample, iteration + 1);
 		}
 		VectorClampP(&refract_color, &refract_color);
 		diffuse_color = VectorMix(refract_color, diffuse_color, alpha);
 	}
 	
-	vector_t ret;
-	VectorPlusVectorP(&ret, &diffuse_color, &specular_color);
-	
-	return ret;
+	return VectorPlusVector(diffuse_color, specular_color);
 }
 

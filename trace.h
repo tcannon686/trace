@@ -8,6 +8,9 @@ typedef struct kd_tree kd_tree_t;
 struct material;
 typedef struct material material_t;
 
+struct triangle;
+typedef struct triangle triangle_t;
+
 typedef struct
 {
 	vector_t o;
@@ -25,6 +28,7 @@ typedef struct
 	ray_t ray;
 	kd_tree_t *tree_ptr;
 	kd_tree_t *node_ptr;
+	triangle_t *triangle_ptr;
 } hit_t;
 
 
@@ -56,11 +60,18 @@ typedef struct
 
 typedef void (*pixel_traced_callback_t)(int x, int y, vector_t color, void *data);
 
+typedef struct scene
+{
+	vector_t sky_color;
+	hashtable_t *table;
+} scene_t;
+
 typedef struct render_params
 {
+	matrix_t transform_camera;
 	kd_tree_t *tree_ptr;
 	list_t *lights_ptr;
-	vector_t sky_color;
+	scene_t *scene_ptr;
 	int x0, y0;
 	int x1, y1;
 	int width, height;
@@ -68,7 +79,6 @@ typedef struct render_params
 	vecc_t scale_x, scale_y;
 	vecc_t focal_length;
 	int samples;
-	int shadow_samples;
 	int max_iterations;
 	pixel_traced_callback_t callback;
 	void *callback_data;
@@ -78,13 +88,13 @@ typedef vector_t (*shader_t)(
 	void *shader_data,
 	hit_t *hit,
 	render_params_t *rp_ptr,
-	int iteration,
-	int max_iterations);
+	int samples, int max_samples,
+	int iteration, int max_iterations);
 
-#define ShadeHit(hit, rp_ptr, iteration)\
+#define ShadeHit(hit, rp_ptr, sample, iteration)\
 	VectorClamp(hit.material_ptr->shader(\
 		hit.material_ptr->shader_data, &hit,\
-		rp_ptr, iteration, rp_ptr->max_iterations));
+		rp_ptr, sample, rp_ptr->samples, iteration, rp_ptr->max_iterations));
 
 typedef struct material
 {
@@ -93,7 +103,7 @@ typedef struct material
 	hashtable_t *table;
 } material_t;
 
-typedef struct
+typedef struct triangle
 {
 	union
 	{
@@ -215,7 +225,6 @@ typedef struct render_settings
 {
 	matrix_t transform_stack[32];
 	matrix_t *transform_ptr;
-	vector_t sky;
 	tri_list_t *triangles_ptr;
 	tri_list_t *triangle_ptr;
 	list_t *materials_ptr;
@@ -227,17 +236,16 @@ typedef struct render_settings
 	texture2d_t *texture2d_ptr;
 	list_t *images_ptr;
 	image_t *image_ptr;
+	scene_t *scene_ptr;
 	int current_point;
 	int current_normal;
 	int current_texco;
 	vecc_t focal_length;
 	int samples;
-	int shadow_samples;
 	int section_size;
 	int threads;
 	int max_iterations;
 	FILE *input;
-	char out_file[255];
 } render_settings_t;
 
 // Returns 1 if program execution should continue, otherwise some other number.
@@ -245,21 +253,21 @@ typedef int(*cmd_t)(render_settings_t *rs);
 
 void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
 
+void SeedRandom(int i);
 vector_t RandomVector(int axes);
+vector_t RandomDirection();
 
 ray_t NewRay(vector_t o, vector_t d);
 
 kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result);
 void CleanTriangles(tri_list_t **triangles_ptr);
 
-int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri);
+int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t *tri);
 int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr);
 int RayTree(hit_t *hit_ptr, ray_t ray, kd_tree_t *tree_ptr);
 
 vecc_t RayBox(ray_t *ray, bounding_box_t box);
-vector_t Barycentric(vector_t v, triangle_t tri);
-
-void SeedHalton(int index);
+vector_t Barycentric(vector_t v, triangle_t *tri);
 
 vector_t VectorMix(vector_t left, vector_t right, vecc_t a);
 
@@ -270,25 +278,30 @@ void FreeTree(kd_tree_t *tree_ptr);
 
 void RenderImageCallback(int x, int y, vector_t color, void *data);
 
+void CancelRender();
 void Render(
 	pixel_traced_callback_t callback,
 	void *callback_data,
 	int width, int height,
+	matrix_t transform_camera,
 	kd_tree_t *tree_ptr,
 	list_t *lights_ptr,
-	vector_t sky_color,
+	scene_t *scene_ptr,
 	int section_size,
 	vecc_t aspect,
 	vecc_t scale_x, vecc_t scale_y,
 	vecc_t focal_length,
 	int samples,
-	int shadow_samples,
 	int max_iterations,
 	int num_threads);
 
 void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
 
 #define PropGet(material_ptr, key)	HashTableGet((material_ptr)->table, key)->value
+#define PropGetOrDefault(material_ptr, key, default)\
+	((HashTableGet((material_ptr)->table, key) != NULL) ?\
+	HashTableGet((material_ptr)->table, key)->value\
+	: ((hashtable_value_t)default))
 #define PropGetOrInsert(material_ptr, key)	HashTableGetOrInsert((material_ptr)->table, key)->value
 
 #endif

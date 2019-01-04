@@ -9,7 +9,7 @@
 /*.ray
 /*.pyc
 /.vscode/
-/__pycache__/
+*__pycache__/
 /Debug/
 /x64/
 /.vs/

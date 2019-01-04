@@ -24,6 +24,7 @@
 #include "lodepng.h"
 #include "shade.h"
 #include "cmd.h"
+#include "halton.h"
 #include "texture.h"
 
 #ifdef INCLUDE_GUI
@@ -31,30 +32,52 @@
 #endif
 
 #define DEFAULT_OUTPUT "output.png"
-#define THRESHOLD 0.00001
+#define THRESHOLD 0.0000001
+
+static int _random_seed = 1;
+
+#define RandomHalton(axis, i) Halton(2 + axis, i)
+#define RandomDefault(axis, i) (vecc_t)rand() / RAND_MAX
+#define Random(axis, i) RandomHalton(axis, i)
 
 vector_t RandomVector(int axes)
 {
 	vector_t ret = vec2(0, 0);
 	for(int i = 0; i < axes; i ++)
 	{
-		ret.m[i] = 2 * ((vecc_t)rand() / RAND_MAX) - 1;
+		ret.m[i] = 2 * (Random(i, _random_seed)) - 1;
 	}
+	_random_seed ++;
 	return ret;
 }
 
-vector_t Barycentric(vector_t v, triangle_t tri)
+vector_t RandomDirection()
+{
+	vector_t ret = vec3(
+		sin(Random(0, _random_seed) * 2 * M_PI),
+		cos(Random(1, _random_seed) * 2 * M_PI),
+		sin(Random(1, _random_seed) * 2 * M_PI));
+	_random_seed ++;
+	return ret;
+}
+
+void SeedRandom(int i)
+{
+	_random_seed = i;
+}
+
+vector_t Barycentric(vector_t v, triangle_t *tri)
 {
 	vector_t ret;
-	vecc_t area_inv = 1.0 / tri.area;
+	vecc_t area_inv = 1.0 / tri->area;
 	
 	vector_t cross;
 	
 	cross = VectorCrossVector(
-			VectorMinusVector(v, tri.a),
-			tri.ba);
+			VectorMinusVector(v, tri->a),
+			tri->ba);
 	
-	if(VectorDotVector(tri.normal, cross) < 0)
+	if(VectorDotVector(tri->normal, cross) < 0)
 	{
 		ret.x = -1;
 		return ret;
@@ -63,10 +86,10 @@ vector_t Barycentric(vector_t v, triangle_t tri)
 		ret.z = VectorMagnitude(cross) * area_inv;
 	
 	cross = VectorCrossVector(
-			VectorMinusVector(v, tri.b),
-			tri.cb);
+			VectorMinusVector(v, tri->b),
+			tri->cb);
 	
-	if(VectorDotVector(tri.normal, cross) < 0)
+	if(VectorDotVector(tri->normal, cross) < 0)
 	{
 		ret.x = -1;
 		return ret;
@@ -75,10 +98,10 @@ vector_t Barycentric(vector_t v, triangle_t tri)
 		ret.x = VectorMagnitude(cross) * area_inv;
 	
 	cross = VectorCrossVector(
-			VectorMinusVector(v, tri.c),
-			tri.ac);
+			VectorMinusVector(v, tri->c),
+			tri->ac);
 	
-	if(VectorDotVector(tri.normal, cross) < 0)
+	if(VectorDotVector(tri->normal, cross) < 0)
 	{
 		ret.x = -1;
 		return ret;
@@ -90,12 +113,12 @@ vector_t Barycentric(vector_t v, triangle_t tri)
 	return ret;
 }
 
-int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
+int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t *tri)
 {
-	vecc_t ldotn = VectorDotVector(ray->d, tri.normal);
+	vecc_t ldotn = VectorDotVector(ray->d, tri->normal);
 	if(ldotn == 0)
 		return 0;
-	vecc_t d = VectorDotVector(VectorMinusVector(tri.v0, ray->o), tri.normal);
+	vecc_t d = VectorDotVector(VectorMinusVector(tri->v0, ray->o), tri->normal);
 	
 	if(d * ldotn <= 0)
 		return 0;
@@ -117,23 +140,24 @@ int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t tri)
 	
 	
 	hit_ptr->t = d;
-	hit_ptr->material_ptr = tri.material_ptr;
+	hit_ptr->material_ptr = tri->material_ptr;
 	hit_ptr->position = pos;
 	hit_ptr->ray = *ray;
+	hit_ptr->triangle_ptr = tri;
 	
 	hit_ptr->normal =
 		VectorNormalize(VectorPlusVector(
-			VectorTimesScalar(tri.n0, bary.x),
+			VectorTimesScalar(tri->n0, bary.x),
 			VectorPlusVector(
-				VectorTimesScalar(tri.n1, bary.y),
-				VectorTimesScalar(tri.n2, bary.z))));
+				VectorTimesScalar(tri->n1, bary.y),
+				VectorTimesScalar(tri->n2, bary.z))));
 	
 	hit_ptr->texco =
 		VectorPlusVector(
-			VectorTimesScalar(tri.t0, bary.x),
+			VectorTimesScalar(tri->t0, bary.x),
 			VectorPlusVector(
-				VectorTimesScalar(tri.t1, bary.y),
-				VectorTimesScalar(tri.t2, bary.z)));
+				VectorTimesScalar(tri->t1, bary.y),
+				VectorTimesScalar(tri->t2, bary.z)));
 	
 	return 1;
 }
@@ -144,7 +168,7 @@ int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr)
 	int ret = 0;
 	while(current_ptr != NULL)
 	{
-		ret = ret || RayTriangle(hit_ptr, ray, current_ptr->current);
+		ret = ret || RayTriangle(hit_ptr, ray, &current_ptr->current);
 		current_ptr = current_ptr->next_ptr;
 	}
 	return ret;
@@ -252,7 +276,8 @@ void CleanTriangles(tri_list_t **triangles_ptr)
 	while(current != NULL)
 	{
 		tri_list_t *next_ptr = current->next_ptr;
-		if(current->current.area == 0)
+		
+		if(current->current.area <= THRESHOLD)
 		{
 			if(current->last_ptr != NULL)
 				current->last_ptr->next_ptr = next_ptr;
@@ -260,6 +285,12 @@ void CleanTriangles(tri_list_t **triangles_ptr)
 				*triangles_ptr = next_ptr;
 			if(next_ptr != NULL)
 				next_ptr->last_ptr = current->last_ptr;
+		}
+		else
+		{
+			// Reverse normal if necessary
+			/*if(VectorDotVector(current->current.normal, current->current.n0) < 0)
+				current->current.normal = VectorNegate(current->current.normal);*/
 		}
 		current = next_ptr;
 	}
@@ -274,12 +305,15 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result)
 	if(triangles_ptr == NULL)
 		return NULL;
 	
+	
+	// Update the maximum depth statistic.
 	if(depth_result != NULL)
 	{
 		if(depth >= *depth_result)
 			*depth_result = depth;
 	}
 	
+	// Create a new node with the given triangles
 	kd_tree_t *tree_ptr = (kd_tree_t *)malloc(sizeof(kd_tree_t));
 	memset(tree_ptr, 0, sizeof(kd_tree_t));
 	tree_ptr->box = Expand(BoundingBoxTriList(triangles_ptr));
@@ -310,6 +344,7 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result)
 	else if(dimensions.z > dimensions.x && dimensions.z > dimensions.y)
 		tree_ptr->axis_index = 2;
 	else
+		// If there is no longest axis, split by 
 		tree_ptr->axis_index = depth % 3;
 	
 	tree_ptr->axis = vec4(0, 0, 0, 0);
@@ -633,12 +668,12 @@ void PrintTriangles(tri_list_t *triangles_ptr) {
 	}
 }
 
-
-void RenderSection(render_params_t *rp_ptr)
+// OLD!
+// Goes line by line
+void RenderSectionOld(render_params_t *rp_ptr)
 {
 	int sampleWidth = (int)sqrt(rp_ptr->samples);
 	vecc_t sampleSize = 1.0 / sampleWidth;
-	kd_tree_t *last_hit = NULL;
 	vector_t sample_offset;
 	hit_t result;
 	vector_t sample;
@@ -646,6 +681,7 @@ void RenderSection(render_params_t *rp_ptr)
 	{
 		for(int j = rp_ptr->y0; j < rp_ptr->y1; j ++)
 		{
+			SeedRandom(clock());
 			vector_t pixel = vec3(0, 0, 0);
 			for(int k = 0; k < rp_ptr->samples; k ++)
 			{
@@ -658,18 +694,88 @@ void RenderSection(render_params_t *rp_ptr)
 						-rp_ptr->focal_length));
 				result.t = INFINITY;
 				result.tree_ptr = rp_ptr->tree_ptr;
-				sample = rp_ptr->sky_color;
-				if(last_hit != NULL)
-					RayTree(&result, ray, last_hit);
+				sample = rp_ptr->scene_ptr->sky_color;
 				if(RayTree(&result, ray, rp_ptr->tree_ptr))
 				{
-					sample = ShadeHit(result, rp_ptr, 0);
-					last_hit = result.node_ptr;
+					sample = ShadeHit(result, rp_ptr, k, 0);
 				}
 				VectorPlusVectorP(&pixel, &pixel, &sample);
 			}
 			VectorTimesScalarP(&pixel, &pixel, 1.0 / rp_ptr->samples);
 			rp_ptr->callback(i, j, pixel, rp_ptr->callback_data);
+		}
+	}
+}
+
+
+static int cancel_render = 0;
+void CancelRender()
+{
+	cancel_render = 1;
+}
+
+// New, goes by subdivision
+void RenderSection(render_params_t *rp_ptr)
+{
+	int sampleWidth = (int)sqrt(rp_ptr->samples);
+	vecc_t sampleSize = 1.0 / sampleWidth;
+	vector_t sample_offset;
+	hit_t result;
+	vector_t sample;
+	
+	vector_t origin = vec4(0, 0, 0, 1);
+	int l = (rp_ptr->x1 - rp_ptr->x0);
+	int lh = (rp_ptr->y1 - rp_ptr->y0);
+	int lpow2;
+	
+	int use_cam = !MatrixEqualsMatrix(IdentityMatrix(), rp_ptr->transform_camera);
+	if(use_cam)
+		origin = MatrixTimesVector(rp_ptr->transform_camera, origin);
+	
+	if(lh > l)
+		l = lh;
+	
+	// find nearest power of 2
+	for(lpow2 = 1; lpow2 < l; lpow2 *= 2);
+	lpow2 = lpow2 / 2;
+	
+	for(l = lpow2; l >= 1; l /= 2)
+	{
+		for(int i = rp_ptr->x0; i < rp_ptr->x1; i += l)
+		{
+			for(int j = rp_ptr->y0; j < rp_ptr->y1; j += l)
+			{
+				if(cancel_render)
+					return;
+				if(l != lpow2 && (i % (l * 2)) == 0 && (j % (l * 2)) == 0)
+					continue;
+				SeedRandom(clock());
+				vector_t pixel = vec3(0, 0, 0);
+				for(int k = 0; k < rp_ptr->samples; k ++)
+				{
+					sample_offset = 
+						vec2((k % sampleWidth) * sampleSize, (k / sampleWidth) * sampleSize);
+					vector_t direction = vec3(
+						rp_ptr->scale_x * (((vecc_t)i - rp_ptr->width / 2.0) + sample_offset.x),
+						rp_ptr->scale_y * (((vecc_t)j - rp_ptr->height / 2.0) + sample_offset.y),
+						-rp_ptr->focal_length);
+					ray_t ray;
+					if(!use_cam)
+						ray = NewRay(origin, direction);
+					else
+						ray = NewRay(origin, MatrixTimesVector(rp_ptr->transform_camera, direction));
+					result.t = INFINITY;
+					result.tree_ptr = rp_ptr->tree_ptr;
+					sample = rp_ptr->scene_ptr->sky_color;
+					if(RayTree(&result, ray, rp_ptr->tree_ptr))
+					{
+						sample = ShadeHit(result, rp_ptr, k, 0);
+					}
+					VectorPlusVectorP(&pixel, &pixel, &sample);
+				}
+				VectorTimesScalarP(&pixel, &pixel, 1.0 / rp_ptr->samples);
+				rp_ptr->callback(i, j, pixel, rp_ptr->callback_data);
+			}
 		}
 	}
 }
@@ -711,15 +817,15 @@ void Render(
 	pixel_traced_callback_t callback,
 	void *callback_data,
 	int width, int height,
+	matrix_t transform_camera,
 	kd_tree_t *tree_ptr,
 	list_t *lights_ptr,
-	vector_t sky_color,
+	scene_t *scene_ptr,
 	int section_size,
 	vecc_t aspect,
 	vecc_t scale_x, vecc_t scale_y,
 	vecc_t focal_length,
 	int samples,
-	int shadow_samples,
 	int max_iterations,
 	int num_threads)
 {
@@ -728,6 +834,7 @@ void Render(
 #else
 	pthread_t threads[8];
 #endif
+	cancel_render = 0;
 	render_params_list_t *rps = NULL;
 	render_params_list_t *last_ptr = NULL;
 	for(int i = 0; i < width; i += section_size)
@@ -741,7 +848,7 @@ void Render(
 			rp->current.height = height;
 			rp->current.tree_ptr = tree_ptr;
 			rp->current.lights_ptr = lights_ptr;
-			rp->current.sky_color = sky_color;
+			rp->current.scene_ptr = scene_ptr;
 			rp->current.x0 = i;
 			rp->current.y0 = j;
 			rp->current.x1 = min(i + section_size, width);
@@ -751,10 +858,10 @@ void Render(
 			rp->current.scale_y = scale_y;
 			rp->current.focal_length = focal_length;
 			rp->current.samples = samples;
-			rp->current.shadow_samples = shadow_samples;
 			rp->current.max_iterations = max_iterations;
 			rp->current.callback = callback;
 			rp->current.callback_data = callback_data;
+			rp->current.transform_camera = transform_camera;
 			if(last_ptr != NULL)
 				last_ptr->next_ptr = rp;
 			else
@@ -851,6 +958,9 @@ int main(int argc, char **argv)
 	CommandsSetStandard(table_cmds);
 	CommandsSetTexture(table_cmds);
 	
+	scene_t scene;
+	scene.table = HashTableNewDefault();
+	scene.sky_color = vec4(0, 0, 0, 1);
 	render_settings_t render_settings;
 	render_settings_t *rs = &render_settings;
 	rs->transform_ptr = rs->transform_stack;
@@ -866,6 +976,7 @@ int main(int argc, char **argv)
 	rs->texture2d_ptr = NULL;
 	rs->images_ptr = ListNew(ImageFree, NULL);
 	rs->image_ptr = NULL;
+	rs->scene_ptr = &scene;
 	
 	rs->current_point = 0;
 	rs->current_normal = 0;
@@ -873,12 +984,10 @@ int main(int argc, char **argv)
 	
 	rs->focal_length = 1;
 	rs->samples = 1;
-	rs->shadow_samples = 1;
 	rs->section_size = 256;
 	rs->threads = 4;
 	rs->max_iterations = 10;
 	rs->input = stdin;
-	memcpy(rs->out_file, DEFAULT_OUTPUT, sizeof(DEFAULT_OUTPUT));
 	
 	if(argc > 1)
 		rs->input = fopen(argv[1], "r");
@@ -887,8 +996,10 @@ int main(int argc, char **argv)
 	{
 	
 		// INPUT
+		if(feof(rs->input));
 		char cmd_str[64];
-		while(!fscanf(rs->input, "%s", cmd_str));
+		do fscanf(rs->input, "%s", cmd_str);
+		while(strlen(cmd_str) == 0);
 		hashtable_entry_t *entry = HashTableGet(table_cmds, cmd_str);
 		if (entry != NULL)
 		{
@@ -901,10 +1012,9 @@ int main(int argc, char **argv)
 			printf("error: unknown command \"%s\"\n", cmd_str);
 		}
 	}
-	printf("info: freeing memory...\n");
-	ListFree(rs->materials_ptr);
-	ListFree(rs->lights_ptr);
+	printf("info: freeing memory.\n");
 	HashTableFree(table_cmds);
+	ListFree(rs->images_ptr);
 	printf("info: goodbye.\n");
 	return 0;
 }

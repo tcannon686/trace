@@ -1,5 +1,5 @@
 
-OBJECTS = trace.o matrix.o lodepng.o shade.o hashtable.o linkedlist.o texture.o cmd.o xwin.o
+OBJECTS = trace.o matrix.o lodepng.o shade.o hashtable.o linkedlist.o texture.o cmd.o xwin.o halton.o
 PROGRAM = trace.exe
 
 DEBUG_OPTIONS = -Wall -g
@@ -42,6 +42,9 @@ texture.o : texture.c texture.h
 
 cmd.o : cmd.c cmd.h
 	$(CC) -c cmd.c -o cmd.o $(OPTIONS)
+
+halton.o : halton.c halton.h
+	$(CC) -c halton.c -o halton.o $(OPTIONS)
 
 lodepng.o : lodepng.c lodepng.h
 	$(CC) -c lodepng.c -o lodepng.o

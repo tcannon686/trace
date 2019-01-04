@@ -4,32 +4,6 @@ import bpy
 from mathutils import Vector
 import subprocess
 
-from bpy.types import (
-            AddonPreferences,
-            PropertyGroup,
-            Operator)
-from bpy.props import (
-        StringProperty,
-        BoolProperty,
-        IntProperty,
-        FloatProperty,
-        FloatVectorProperty,
-        EnumProperty,
-        PointerProperty)
-
-class HelloWorldOperator(bpy.types.Operator):
-    bl_idname = "wm.hello_world"
-    bl_label = "Minimal Operator"
-
-    def execute(self, context):
-        print("Hello World")
-        return {'FINISHED'}
-
-bpy.utils.register_class(HelloWorldOperator)
-
-# test call to the newly defined operator
-bpy.ops.wm.hello_world()
-
 renderer_path = '/home/tcannon/Projects/trace/trace.exe'
 
 scene = bpy.context.scene
@@ -84,7 +58,7 @@ for object in scene.objects:
     elif object.type == 'LAMP':
         output += 'make_light\n'
         position = camera_matrix * (object.matrix_world * Vector((0, 0, 0)))
-        output += 'light_set_vector position ' + vecstring(position) + '\n'
+        output += 'light_position ' + vecstring(position) + '\n'
         output += 'light_set_vector color ' + vecstring(object.data.color) + '\n'
         output += 'light_set_number energy ' + str(object.data.energy) + '\n'
         output += 'light_set_number distance ' + str(object.data.distance) + '\n'

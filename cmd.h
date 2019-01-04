@@ -20,6 +20,10 @@ int CmdLightSetVector(render_settings_t *rs);
 int CmdLightSetNumber(render_settings_t *rs);
 int CmdLightSetInteger(render_settings_t *rs);
 
+int CmdSceneSetVector(render_settings_t *rs);
+int CmdSceneSetNumber(render_settings_t *rs);
+int CmdSceneSetInteger(render_settings_t *rs);
+
 int CmdMakeMaterial(render_settings_t *rs);
 int CmdMakeLight(render_settings_t *rs);
 
@@ -32,7 +36,6 @@ int CmdSky(render_settings_t *rs);
 int CmdCamFov(render_settings_t *rs);
 
 int CmdRenderSamples(render_settings_t *rs);
-int CmdRenderShadowSamples(render_settings_t *rs);
 int CmdRenderSectionSize(render_settings_t *rs);
 int CmdRenderThreads(render_settings_t *rs);
 int CmdRenderIterations(render_settings_t *rs);
@@ -45,8 +48,10 @@ int CmdTransformPush(render_settings_t *rs);
 int CmdTransformTranslate(render_settings_t *rs);
 int CmdTransformScale(render_settings_t *rs);
 int CmdTransformRotate(render_settings_t *rs);
+int CmdHalton(render_settings_t *rs);
 
 
 void CommandsSetStandard(hashtable_t *table_cmds);
+
 
 
