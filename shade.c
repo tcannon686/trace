@@ -23,19 +23,19 @@ vector_t PhongShader(
 	vector_t V = VectorNormalize(VectorNegate(hit_ptr->position));
 	light_t *cur_light_ptr;
 	
-	vector_t ambient = PropGetOrDefault(rp_ptr->scene_ptr, "ambient", vec4(0, 0, 0, 0)).vector;
-	int ao_samples = PropGetOrDefault(rp_ptr->scene_ptr, "ao_samples", 0).integer;
-	vecc_t ao_distance = PropGetOrDefault(rp_ptr->scene_ptr, "ao_distance", 1.0).number;
-	int shadow_samples = PropGetOrDefault(rp_ptr->scene_ptr, "shadow_samples", 1).integer;
+	vector_t ambient = PropGetOrDefault(vector, rp_ptr->scene_ptr, "ambient", vec4(0, 0, 0, 0));
+	int ao_samples = PropGetOrDefault(integer, rp_ptr->scene_ptr, "ao_samples", 0);
+	vecc_t ao_distance = PropGetOrDefault(number, rp_ptr->scene_ptr, "ao_distance", 1.0);
+	int shadow_samples = PropGetOrDefault(integer, rp_ptr->scene_ptr, "shadow_samples", 1);
 	
-	vector_t diffuse = PropGet(hit_ptr->material_ptr, "diffuse").vector;
-	vector_t m_ambient = PropGetOrDefault(hit_ptr->material_ptr, "ambient", vec4(1, 1, 1, 1)).vector;
-	vector_t specular = PropGet(hit_ptr->material_ptr, "specular").vector;
-	vecc_t shininess = PropGet(hit_ptr->material_ptr, "shininess").number;
-	vecc_t reflectiveness = PropGet(hit_ptr->material_ptr, "reflectiveness").number;
-	vecc_t alpha = PropGet(hit_ptr->material_ptr, "alpha").number;
-	vecc_t ior = PropGet(hit_ptr->material_ptr, "ior").number;
-	int shadeless = PropGet(hit_ptr->material_ptr, "shadeless").integer;
+	vector_t diffuse = PropGetOrDefault(vector, hit_ptr->material_ptr, "diffuse", vec3(1, 1, 1));
+	vector_t m_ambient = PropGetOrDefault(vector, hit_ptr->material_ptr, "ambient", vec4(1, 1, 1, 1));
+	vector_t specular = PropGetOrDefault(vector, hit_ptr->material_ptr, "specular", vec3(1, 1, 1));
+	vecc_t shininess = PropGetOrDefault(number, hit_ptr->material_ptr, "shininess", 10.0);
+	vecc_t reflectiveness = PropGetOrDefault(number, hit_ptr->material_ptr, "reflectiveness", 0.0);
+	vecc_t alpha = PropGetOrDefault(number, hit_ptr->material_ptr, "alpha", 1.0);
+	vecc_t ior = PropGetOrDefault(number, hit_ptr->material_ptr, "ior", 1.0);
+	int shadeless = PropGetOrDefault(number, hit_ptr->material_ptr, "shadeless", 0);
 	ambient_color = ambient;
 	
 	hashtable_entry_t *tex_diffuse =
@@ -85,10 +85,10 @@ vector_t PhongShader(
 			vector_t Id, Is;
 			vector_t Lm = VectorMinusVector(l.position, hit_ptr->position);
 			vecc_t distance = VectorMagnitude(Lm);
-			vecc_t l_distance = PropGetOrDefault(&l, "distance", 30.0).number;
-			vecc_t l_energy = PropGetOrDefault(&l, "energy", 1.0).number;
-			vecc_t l_soft_size = PropGetOrDefault(&l, "soft_size", 0.25).number;
-			int l_enable_shadows = PropGetOrDefault(&l, "enable_shadows", 1).integer;
+			vecc_t l_distance = PropGetOrDefault(number, &l, "distance", 30.0);
+			vecc_t l_energy = PropGetOrDefault(number, &l, "energy", 1.0);
+			vecc_t l_soft_size = PropGetOrDefault(number, &l, "soft_size", 0.25);
+			int l_enable_shadows = PropGetOrDefault(integer, &l, "enable_shadows", 1);
 			vecc_t attenuation = l_energy * (l_distance / (l_distance + distance));
 			Lm = VectorTimesScalar(Lm, 1.0 / distance);
 			vector_t N = hit_ptr->normal;

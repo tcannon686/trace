@@ -104,7 +104,7 @@ int CmdMakeTexture2d(render_settings_t *rs)
 	memset(tex_ptr, 0, sizeof(texture2d_t));
 	tex_ptr->image_ptr = (image_t *)ListGet(rs->images_ptr, image_index).data_ptr;
 	tex_ptr->filter = BILINEAR;
-	ListAppend(rs->texture2ds_ptr, (list_data_t)((void *)tex_ptr));
+	ListAppendPointer(rs->texture2ds_ptr, (void *)tex_ptr);
 	rs->texture2d_ptr = tex_ptr;
 	return 1;
 }
@@ -125,7 +125,7 @@ int CmdMakeImage(render_settings_t *rs)
 	
 	image_t *image_ptr = ImageNew(width, height);
 	
-	ListAppend(rs->images_ptr, (list_data_t)((void *)image_ptr));
+	ListAppendPointer(rs->images_ptr, (void *)image_ptr);
 	rs->image_ptr = image_ptr;
 	
 	return 1;
@@ -199,7 +199,7 @@ int CmdImageLoad(render_settings_t *rs)
 	image_ptr->height = height;
 	image_ptr->data = data;
 	
-	ListAppend(rs->images_ptr, (list_data_t)((void *)image_ptr));
+	ListAppendPointer(rs->images_ptr, (void *)image_ptr);
 	rs->image_ptr = image_ptr;
 	return 1;
 }

@@ -112,6 +112,9 @@
     <ClCompile Include="matrix.c" />
     <ClCompile Include="shade.c" />
     <ClCompile Include="trace.c" />
+    <ClCompile Include="halton.c" />
+    <ClCompile Include="linkedlist.c" />
+    <ClCompile Include="texture.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cmd.h" />
@@ -120,6 +123,9 @@
     <ClInclude Include="matrix.h" />
     <ClInclude Include="shade.h" />
     <ClInclude Include="trace.h" />
+    <ClInclude Include="halton.h" />
+    <ClInclude Include="linkedlist.h" />
+    <ClInclude Include="texture.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

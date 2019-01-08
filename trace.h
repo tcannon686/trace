@@ -297,11 +297,11 @@ void Render(
 
 void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
 
-#define PropGet(material_ptr, key)	HashTableGet((material_ptr)->table, key)->value
-#define PropGetOrDefault(material_ptr, key, default)\
+#define PropGet(type, material_ptr, key)	HashTableGet((material_ptr)->table, key)->value.type
+#define PropGetOrDefault(type, material_ptr, key, default)\
 	((HashTableGet((material_ptr)->table, key) != NULL) ?\
-	HashTableGet((material_ptr)->table, key)->value\
-	: ((hashtable_value_t)default))
+	HashTableGet((material_ptr)->table, key)->value.type\
+	: default)
 #define PropGetOrInsert(material_ptr, key)	HashTableGetOrInsert((material_ptr)->table, key)->value
 
 #endif

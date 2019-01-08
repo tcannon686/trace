@@ -400,7 +400,7 @@ int CmdMakeMaterial(render_settings_t *rs)
 	material_ptr->table = HashTableNewDefault();
 	rs->material_ptr = material_ptr;
 	rs->current_material_ptr = material_ptr;
-	ListAppend(rs->materials_ptr, (list_data_t)((void *)material_ptr));
+	ListAppendPointer(rs->materials_ptr, (void *)material_ptr);
 	/*if(rs->material_ptr == NULL)
 	{
 		material_t *material_ptr = malloc(sizeof(mat_list_t));
@@ -431,7 +431,7 @@ int CmdMakeLight(render_settings_t *rs)
 	memset(light_ptr, 0, sizeof(light_t));
 	light_ptr->table = HashTableNewDefault();
 	rs->light_ptr = light_ptr;
-	ListAppend(rs->lights_ptr, (list_data_t)((void *)light_ptr));
+	ListAppendPointer(rs->lights_ptr, (void *)light_ptr);
 	return 1;
 }
 

@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#ifndef M_PI
+#define M_PI 3.1415926539
+#endif
 #ifdef _WIN32
 #	include <Windows.h>
 #else
