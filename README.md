@@ -5,7 +5,7 @@ Trace is a simple raytracer I created. Its current target is Linux and Windows, 
 Trace uses [LodePNG](https://lodev.org/lodepng/) for PNG loading and writing.
 
 # Compiling
-Simply open the solution in Visual Studio and compile, or run `make` from the root directory. I used MinGW, GCC, and VC++ 2017 to compile it. By default, the program does not compile with GUI support. Currently, only X is supported using the `render_window` command. To compile with the GUI components, run `make INCLUDE_GUI=true`.
+Simply open the solution in Visual Studio and compile, or run `make` from the root directory. I used MinGW, GCC, and VC++ 2017 to compile it. By default, the program does not compile with GUI support. Currently, only X is supported using the `render_window` command. To compile with the GUI components, run `make INCLUDE_GUI=true`. To build a release version, run `make RELEASE=true`.
 
 # Python Front End
 The program includes a simple Python front end that starts the C program to do the rendering. The python front end requires at least Python 3. You can import the raytrace.py file to try try it out. Demos are also included in the demo folder. You can manually run the demos by adding the trace folder to the path, or by running the `demos.py [demo name]` script. More documentation is provided in the raytrace.py and demos.py files.

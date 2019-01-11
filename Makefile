@@ -6,6 +6,9 @@ DEBUG_OPTIONS = -Wall -g
 RELEASE_OPTIONS = 
 
 OPTIONS = $(DEBUG_OPTIONS)
+ifeq ($(RELEASE), true)
+OPTIONS = $(RELEASE_OPTIONS)
+endif
 LIBS = -lm -lpthread
 
 CC = gcc
