@@ -95,7 +95,7 @@ vector_t Texture2dSample(texture2d_t *tex_ptr, vector_t co)
 int CmdMakeTexture2d(render_settings_t *rs)
 {
 	int image_index;
-	if(fscanf(rs->input, "%i", &image_index) == 0)
+	if(!ReadInteger(rs, &image_index))
 	{
 		fprintf(stderr, "error: 'make_texture_2d' not enough arguments.\n");
 		return 1;
@@ -114,12 +114,10 @@ int CmdMakeTexture2d(render_settings_t *rs)
  */
 int CmdMakeImage(render_settings_t *rs)
 {
-	int count;
 	unsigned int width, height;
-	count = fscanf(rs->input, "%u %u", &width, &height);
-	if(count == 0)
+	if(!ReadUnsignedInteger(rs, &width) || !ReadUnsignedInteger(rs, &height))
 	{
-		fprintf(stderr, "error: 'make_image' not enough arguments.\n");
+		fprintf(stderr, "error: 'make_image' expected unsigned integer.\n");
 		return 1;
 	}
 	
@@ -137,10 +135,14 @@ int CmdImageWrite(render_settings_t *rs)
 	int image_index;
 	char out_file[255];
 	image_t *image_ptr;
-	int count = fscanf(rs->input, "%i %s", &image_index, out_file);
-	if (count < 2)
+	if(!ReadInteger(rs, &image_index))
 	{
-		fprintf(stderr, "error: 'image_write' not enough arguments.\n");
+		fprintf(stderr, "error: 'image_write' expected integer.\n");
+		return 1;
+	}
+	if(!ReadString(rs, out_file, sizeof(out_file)))
+	{
+		fprintf(stderr, "error: 'image_write' expected string.\n");
 		return 1;
 	}
 
@@ -153,7 +155,7 @@ int CmdImageWrite(render_settings_t *rs)
 
 	/*if there's an error, display it*/
 	if (error)
-		printf("lodepng error %u: %s\n", error, lodepng_error_text(error));
+		printf("error: lodepng error %u: %s\n", error, lodepng_error_text(error));
 	else
 		printf("okay\n");
 	return 1;
@@ -174,13 +176,12 @@ image_t *ImageNew(unsigned int width, unsigned int height)
  */
 int CmdImageLoad(render_settings_t *rs)
 {
-	int count, error;
-	char filename[64];
-	count = fscanf(rs->input, "%s", filename);
+	int error;
+	char filename[255];
 	
-	if(count == 0)
+	if(!ReadString(rs, filename, sizeof(filename)))
 	{
-		fprintf(stderr, "error: 'image_load' not enough arguments.\n");
+		fprintf(stderr, "error: 'image_load' expected string.\n");
 		return 1;
 	}
 	
@@ -190,7 +191,7 @@ int CmdImageLoad(render_settings_t *rs)
 	error = lodepng_decode32_file(&data, &width, &height, filename);
 	if(error)
 	{
-		fprintf(stderr, "lodepng: error %u: %s\n", error, lodepng_error_text(error));
+		fprintf(stderr, "error: lodepng: error %u: %s\n", error, lodepng_error_text(error));
 		return 1;
 	}
 	
@@ -206,15 +207,23 @@ int CmdImageLoad(render_settings_t *rs)
 
 int CmdImageSetPixel(render_settings_t *rs)
 {
-	int count;
 	int image_index;
 	unsigned int x, y;
 	vector_t color;
-	count = fscanf(rs->input, "%i %u %u %lf %lf %lf %lf", &image_index,  &x, &y,
-		&color.x, &color.y, &color.z, &color.w);
-	if(count == 0)
+
+	if(!ReadInteger(rs, &image_index))
 	{
-		fprintf(stderr, "error: 'image_set_pixel' not enough arguments.\n");
+		fprintf(stderr, "error: 'image_set_pixel' expected integer.\n");
+		return 1;
+	}
+	if(!ReadUnsignedInteger(rs, &x) || !ReadUnsignedInteger(rs, &y))
+	{
+		fprintf(stderr, "error: 'image_set_pixel' expected unsigned integer.\n");
+		return 1;
+	}
+	if(!ReadVec4(rs, &color))
+	{
+		fprintf(stderr, "error: 'image_set_pixel' expected vec4.\n");
 		return 1;
 	}
 	

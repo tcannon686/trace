@@ -30,9 +30,9 @@ class Rotation(Traceable):
         self.y = y
         self.z = z
     def toCode(self, quality):
-        return 'transform_rotate ' + str(self.x) + ', 0 1 0\n'\
-            'transform_rotate ' + str(self.y) + ', 1 0 0\n'\
-            'transform_rotate ' + str(self.z) + ', 0 0 1\n'
+        return 'transform_rotate ' + str(self.x) + ' 0 1 0\n'\
+            'transform_rotate ' + str(self.y) + ' 1 0 0\n'\
+            'transform_rotate ' + str(self.z) + ' 0 0 1\n'
 
 class Scale(Traceable):
     """A scale transformation."""
@@ -74,7 +74,7 @@ class ImageFile(Image):
     
     def toCode(self, quality):
         # no super()
-        return 'image_load ' + self.path + '\n'
+        return 'image_load "' + self.path + '"\n'
 
 class Texture2d(Traceable):
     def __init__(
@@ -628,7 +628,7 @@ class Trace:
             output += 'render_window ' + str(self.render_target.width) + ' ' + str(self.render_target.height) + '\n'
         else:
             output += 'render ' + str(self.images.index(self.render_target)) + '\n'
-            output += 'image_write ' + str(self.images.index(self.render_target)) + ' ' + str(self.out_file) + '\n'
+            output += 'image_write ' + str(self.images.index(self.render_target)) + ' "' + str(self.out_file) + '"\n'
         output += 'quit\n'
         if self.code_path != None:
             print('Saving to ' + self.code_path)

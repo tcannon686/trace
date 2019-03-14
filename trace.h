@@ -59,6 +59,7 @@ typedef struct
 } texture2d_t;
 
 typedef void (*pixel_traced_callback_t)(int x, int y, vector_t color, void *data);
+typedef int (*hit_test_t)(hit_t *hit_ptr, ray_t *ray, void *primitive);
 
 typedef struct scene
 {
@@ -102,6 +103,12 @@ typedef struct material
 	void *shader_data;
 	hashtable_t *table;
 } material_t;
+
+typedef struct primitive
+{
+	hit_test_t hit_test;
+	void *data;
+} primitive_t;
 
 typedef struct triangle
 {
@@ -294,6 +301,16 @@ void Render(
 	int samples,
 	int max_iterations,
 	int num_threads);
+
+
+int ReadString(render_settings_t *rs, char *s, int len);
+int ReadName(render_settings_t *rs, char *s, int len);
+int ReadVec4(render_settings_t *rs, vector_t *v);
+int ReadVec3(render_settings_t *rs, vector_t *v);
+int ReadVec2(render_settings_t *rs, vector_t *v);
+int ReadNumber(render_settings_t *rs, vecc_t *v);
+int ReadInteger(render_settings_t *rs, int *i);
+int ReadUnsignedInteger(render_settings_t *rs, unsigned int *i);
 
 void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
 

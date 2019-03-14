@@ -11,6 +11,7 @@
 #	include <pthread.h>
 #endif
 #include <time.h>
+#include <ctype.h>
 
 #ifndef min
 #define min(a, b)			a < b ? a : b
@@ -945,6 +946,145 @@ void RenderImageCallback(int x, int y, vector_t color, void *data)
 	image_ptr->data[pixel_index + 1] = (unsigned char)(color.m[1] * 255);
 	image_ptr->data[pixel_index + 2] = (unsigned char)(color.m[2] * 255);
 	image_ptr->data[pixel_index + 3] = (unsigned char)(255);
+}
+
+int ReadName(render_settings_t *rs, char *str, int len)
+{
+	int i;
+	char c;
+	char *s = str;
+
+	/* Skip whitespace. */
+	while(isspace((c = fgetc(rs->input))))
+		/* Do nothing. */;
+	ungetc(c, rs->input);
+
+	for(i = 0; i < len - 1; i ++)
+	{
+		
+		if(!isalnum(c = fgetc(rs->input)) && c != '_')
+			break;
+		*s++ = c;
+	}
+	*s = '\0';
+	if(i > 0)
+		return 1;
+	else
+		return 0;
+}
+
+int ReadString(render_settings_t *rs, char *str, int len)
+{
+	int i;
+	char c;
+	char *s;
+
+	s = str;
+	/* Skip whitespace. */
+	while(isspace((c = fgetc(rs->input))))
+		/* Do nothing. */;
+	ungetc(c, rs->input);
+
+	if((c = fgetc(rs->input)) != '"')
+	{
+		ungetc(c, rs->input);
+		return 0;
+	}
+	for(i = 0; i < len - 1; i++, s++)
+	{
+		if((c = fgetc(rs->input)) == '"')
+			break;
+		*s = c;
+	}
+	*s = '\0';
+	return 1;
+}
+
+int ReadVec4(render_settings_t *rs, vector_t *v)
+{
+	vecc_t x, y, z, w;
+	int count;
+	
+	count = fscanf(rs->input, "%lf %lf %lf %lf", &x, &y, &z, &w);
+	if(count == 4)
+	{
+		v->x = x;
+		v->y = y;
+		v->z = z;
+		v->w = w;
+		return 1;
+	}
+	return 0;
+}
+int ReadVec3(render_settings_t *rs, vector_t *v)
+{
+	vecc_t x, y, z;
+	int count;
+	
+	count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
+	if(count == 3)
+	{
+		v->x = x;
+		v->y = y;
+		v->z = z;
+		v->w = 1.0;
+		return 1;
+	}
+	return 0;
+}
+int ReadVec2(render_settings_t *rs, vector_t *v)
+{
+	vecc_t x, y;
+	int count;
+	
+	count = fscanf(rs->input, "%lf %lf", &x, &y);
+	if(count == 2)
+	{
+		v->x = x;
+		v->y = y;
+		return 1;
+	}
+	return 0;
+}
+int ReadNumber(render_settings_t *rs, vecc_t *v)
+{
+	vecc_t x;
+	int count;
+
+	count = fscanf(rs->input, "%lf", &x);
+	if(count == 1)
+	{
+		*v = x;
+		return 1;
+	}
+	return 0;
+}
+int ReadInteger(render_settings_t *rs, int *i)
+{
+	int x;
+	int count;
+
+	count = fscanf(rs->input, "%i", &x);
+	if(count == 1)
+	{
+		*i = x;
+		return 1;
+	}
+	return 0;
+}
+
+int ReadUnsignedInteger(render_settings_t *rs, unsigned int *i)
+{
+	unsigned int x;
+	int count;
+
+	count = fscanf(rs->input, "%u", &x);
+	if(count == 1)
+	{
+		*i = x;
+		return 1;
+	}
+	return 0;
 }
 
 void SetCommand(hashtable_t *table, char *key, cmd_t cmd)

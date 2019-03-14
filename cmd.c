@@ -40,17 +40,13 @@ int CmdQuit(render_settings_t *rs)
 
 int CmdVertex(render_settings_t *rs)
 {
-	vecc_t x, y, z;
 	vector_t vertex;
 
-	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
-	if (count == 0)
+	if (!ReadVec3(rs, &vertex))
 	{
 		fprintf(stderr, "error: 'vertex' not enough arguments\n");
 		return 1;
 	}
-
-	vertex = vec4(x, y, z, 1);
 
 	MatrixTimesVectorP(
 		&rs->triangle_ptr->current.v[rs->current_point],
@@ -119,16 +115,14 @@ int CmdMakeFace(render_settings_t *rs)
 
 int CmdNormal(render_settings_t *rs)
 {
-	vecc_t x, y, z;
 	vector_t normal;
 
-	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
-	if (count == 0)
+	if (!ReadVec3(rs, &normal))
 	{
 		fprintf(stderr, "error: 'normal' not enough arguments.\n");
 		return 1;
 	}
-	normal = vec4(x, y, z, 0);
+	normal.w = 0;
 
 	MatrixTimesVectorP(
 		&rs->triangle_ptr->current.n[rs->current_normal],
@@ -145,16 +139,13 @@ int CmdNormal(render_settings_t *rs)
 
 int CmdTexCo2d(render_settings_t *rs)
 {
-	vecc_t x, y;
 	vector_t co;
 
-	int count = fscanf(rs->input, "%lf %lf", &x, &y);
-	if (count == 0)
+	if (!ReadVec2(rs, &co))
 	{
 		fprintf(stderr, "error: 'texco2d' not enough arguments.\n");
 		return 1;
 	}
-	co = vec4(x, y, 0, 1);
 	rs->triangle_ptr->current.t[rs->current_texco] = co;
 	
 	rs->current_texco++;
@@ -165,64 +156,62 @@ int CmdTexCo2d(render_settings_t *rs)
 
 int CmdSceneSkyColor(render_settings_t *rs)
 {
-	vecc_t x, y, z;
-
-	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
-	if (count == 0)
+	if (!ReadVec3(rs, &rs->scene_ptr->sky_color))
 	{
 		fprintf(stderr, "error: 'scene_sky_color' not enough arguments.\n");
 		return 1;
 	}
-
-	rs->scene_ptr->sky_color = vec4(x, y, z, 1);
 	return 1;
 }
 
 int CmdSceneSetVector(render_settings_t *rs)
 {
 	char key[32];
-	vecc_t x, y, z;
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'scene_set_vector' expected name.\n");
+		return 1;
+	}
 
-	int count = fscanf(rs->input, "%s %lf %lf %lf", key, &x, &y, &z);
-	if (count == 0)
+	if (!ReadVec3(rs, &PropGetOrInsert(rs->scene_ptr, key).vector))
 	{
 		fprintf(stderr, "error: 'scene_set_vector' not enough arguments.\n");
 		return 1;
 	}
-
-	PropGetOrInsert(rs->scene_ptr, key).vector = vec3(x, y, z);
 	return 1;
 }
 
 int CmdSceneSetNumber(render_settings_t *rs)
 {
 	char key[32];
-	vecc_t x;
 
-	int count = fscanf(rs->input, "%s %lf", key, &x);
-	if (count == 0)
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'scene_set_number' expected name.\n");
+		return 1;
+	}
+	
+	if (!ReadNumber(rs, &PropGetOrInsert(rs->scene_ptr, key).number))
 	{
 		fprintf(stderr, "error: 'scene_set_number' not enough arguments.\n");
 		return 1;
 	}
-
-	PropGetOrInsert(rs->scene_ptr, key).number = x;
 	return 1;
 }
 
 int CmdSceneSetInteger(render_settings_t *rs)
 {
 	char key[32];
-	int x;
-
-	int count = fscanf(rs->input, "%s %i", key, &x);
-	if (count == 0)
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'scene_set_integer' expected name.\n");
+		return 1;
+	}
+	if (!ReadInteger(rs, &PropGetOrInsert(rs->scene_ptr, key).integer))
 	{
 		fprintf(stderr, "error: 'scene_set_integer' not enough arguments.\n");
 		return 1;
 	}
-
-	PropGetOrInsert(rs->scene_ptr, key).integer = x;
 	return 1;
 }
 
@@ -230,10 +219,9 @@ int CmdCamFov(render_settings_t *rs)
 {
 	vecc_t fov = 3.14159265 / 2;
 
-	int count = fscanf(rs->input, "%lf", &fov);
-	if (count == 0)
+	if(!ReadNumber(rs, &fov))
 	{
-		fprintf(stderr, "error: 'cam_fov' not enough arguments.\n");
+		fprintf(stderr, "error: 'cam_fov' expected integer.\n");
 		return 1;
 	}
 
@@ -244,8 +232,7 @@ int CmdCamFov(render_settings_t *rs)
 int CmdMatIndex(render_settings_t *rs)
 {
 	int index = 0;
-	int count = fscanf(rs->input, "%i", &index);
-	if (count == 0)
+	if (!ReadInteger(rs, &index))
 	{
 		fprintf(stderr, "error: 'mat_index' not enough arguments.\n");
 		return 1;
@@ -257,42 +244,51 @@ int CmdMatIndex(render_settings_t *rs)
 int CmdMatSetNumber(render_settings_t *rs)
 {
 	char key[32];
-	vecc_t value;
-	int count = fscanf(rs->input, "%s %lf", key, &value);
-	if (count == 0)
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		
+		fprintf(stderr, "error: 'mat_set_number' expected name.\n");
+		return 1;
+	}
+	
+	if (!ReadNumber(rs, &PropGetOrInsert(rs->material_ptr, key).number))
 	{
 		fprintf(stderr, "error: 'mat_set_number' not enough arguments.\n");
 		return 1;
 	}
-	PropGetOrInsert(rs->material_ptr, key).number = value;
 	return 1;
 }
 
 int CmdMatSetInteger(render_settings_t *rs)
 {
 	char key[32];
-	int value;
-	int count = fscanf(rs->input, "%s %i", key, &value);
-	if (count == 0)
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'mat_set_integer' expected name.\n");
+		return 1;
+	}
+	if (!ReadInteger(rs, &PropGetOrInsert(rs->material_ptr, key).integer))
 	{
 		fprintf(stderr, "error: 'mat_set_integer' not enough arguments.\n");
 		return 1;
 	}
-	PropGetOrInsert(rs->material_ptr, key).integer = value;
 	return 1;
 }
 
 int CmdMatSetVector(render_settings_t *rs)
 {
 	char key[32];
-	vector_t value;
-	int count = fscanf(rs->input, "%s %lf %lf %lf", key, &value.x, &value.y, &value.z);
-	if (count == 0)
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'mat_set_vector' expected name.\n");
+		return 1;
+	}
+	
+	if (!ReadVec3(rs, &PropGetOrInsert(rs->material_ptr, key).vector))
 	{
 		fprintf(stderr, "error: 'mat_set_vector' not enough arguments.\n");
 		return 1;
 	}
-	PropGetOrInsert(rs->material_ptr, key).vector = value;
 	return 1;
 }
 
@@ -300,8 +296,14 @@ int CmdMatSetTexture2d(render_settings_t *rs)
 {
 	char key[32];
 	int value;
-	int count = fscanf(rs->input, "%s %i", key, &value);
-	if (count == 0)
+	
+	if(!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'mat_set_texture_2d' not enough arguments.\n");
+		return 1;
+	}
+
+	if (!ReadInteger(rs, &value))
 	{
 		fprintf(stderr, "error: 'mat_set_texture_2d' not enough arguments.\n");
 		return 1;
@@ -314,8 +316,8 @@ int CmdMatSetTexture2d(render_settings_t *rs)
 int CmdMatShader(render_settings_t *rs)
 {
 	char key[32];
-	int count = fscanf(rs->input, "%s", key);
-	if (count == 0)
+
+	if (!ReadName(rs, key, sizeof(key)))
 	{
 		fprintf(stderr, "error: 'mat_shader' not enough arguments.\n");
 		return 1;
@@ -331,15 +333,13 @@ int CmdMatShader(render_settings_t *rs)
 
 int CmdLightPosition(render_settings_t *rs)
 {
-	vecc_t x, y, z;
 	vector_t position;
-	int count = fscanf(rs->input, "%lf %lf %lf", &x, &y, &z);
-	if (count == 0)
+
+	if (!ReadVec3(rs, &position))
 	{
 		fprintf(stderr, "error: 'light_position' not enough arguments.\n");
 		return 1;
 	}
-	position = vec4(x, y, z, 1);
 	MatrixTimesVectorP(&rs->light_ptr->position, rs->transform_ptr, &position);
 	return 1;
 }
@@ -347,48 +347,54 @@ int CmdLightPosition(render_settings_t *rs)
 int CmdLightSetVector(render_settings_t *rs)
 {
 	char key[32];
-	vecc_t x, y, z;
 
-	int count = fscanf(rs->input, "%s %lf %lf %lf", key, &x, &y, &z);
-	if (count == 0)
+	if (!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'light_set_vector' expected name.\n");
+		return 1;
+	}
+
+	if (!ReadVec3(rs, &PropGetOrInsert(rs->light_ptr, key).vector))
 	{
 		fprintf(stderr, "error: 'light_set_vector' not enough arguments.\n");
 		return 1;
 	}
-
-	PropGetOrInsert(rs->light_ptr, key).vector = vec3(x, y, z);
 	return 1;
 }
 
 int CmdLightSetNumber(render_settings_t *rs)
 {
 	char key[32];
-	vecc_t x;
+	
+	if (!ReadName(rs, key, sizeof(key)))
+	{
+		fprintf(stderr, "error: 'light_set_number' expected name.\n");
+		return 1;
+	}
 
-	int count = fscanf(rs->input, "%s %lf", key, &x);
-	if (count == 0)
+	if (!ReadNumber(rs, &PropGetOrInsert(rs->light_ptr, key).number))
 	{
 		fprintf(stderr, "error: 'light_set_number' not enough arguments.\n");
 		return 1;
 	}
-
-	PropGetOrInsert(rs->light_ptr, key).number = x;
 	return 1;
 }
 
 int CmdLightSetInteger(render_settings_t *rs)
 {
 	char key[32];
-	int x;
-
-	int count = fscanf(rs->input, "%s %i", key, &x);
-	if (count == 0)
+	
+	if (!ReadName(rs, key, sizeof(key)))
 	{
-		fprintf(stderr, "error: 'light_set_integer' not enough arguments.\n");
+		fprintf(stderr, "error: 'light_set_integers' expected name.\n");
 		return 1;
 	}
 
-	PropGetOrInsert(rs->light_ptr, key).integer = x;
+	if (!ReadInteger(rs, &PropGetOrInsert(rs->light_ptr, key).integer))
+	{
+		fprintf(stderr, "error: 'light_set_integers' not enough arguments.\n");
+		return 1;
+	}
 	return 1;
 }
 
@@ -438,10 +444,15 @@ int CmdMakeLight(render_settings_t *rs)
 int CmdInFile(render_settings_t *rs)
 {
 	char file[255];
-	fscanf(rs->input, "%s", file);
+	if(!ReadString(rs, file, sizeof(file)))
+	{
+		fprintf(stderr, "error: 'in_file' expected string.\n");
+		/* Exit the program. */
+		return 0;
+	}
 	rs->input = fopen(file, "r");
 	if (rs->input == NULL) {
-		printf("error: file not found.\n");
+		fprintf(stderr, "error: file not found.\n");
 		rs->input = stdin;
 	}
 	return 1;
@@ -455,8 +466,7 @@ int CmdInStdIn(render_settings_t *rs)
 
 int CmdRenderSamples(render_settings_t *rs)
 {
-	int count = fscanf(rs->input, "%i", &rs->samples);
-	if (count == 0)
+	if (!ReadInteger(rs, &rs->samples))
 	{
 		fprintf(stderr, "error: 'render_samples' not enough arguments.\n");
 		return 1;
@@ -466,8 +476,7 @@ int CmdRenderSamples(render_settings_t *rs)
 
 int CmdRenderSectionSize(render_settings_t *rs)
 {
-	int count = fscanf(rs->input, "%i", &rs->section_size);
-	if (count == 0)
+	if (!ReadInteger(rs, &rs->section_size))
 	{
 		fprintf(stderr, "error: 'render_section_size' not enough arguments.\n");
 		return 1;
@@ -477,8 +486,7 @@ int CmdRenderSectionSize(render_settings_t *rs)
 
 int CmdRenderThreads(render_settings_t *rs)
 {
-	int count = fscanf(rs->input, "%i", &rs->threads);
-	if (count == 0)
+	if (!ReadInteger(rs, &rs->threads))
 	{
 		fprintf(stderr, "error: 'render_threads' not enough arguments.\n");
 		return 1;
@@ -488,8 +496,7 @@ int CmdRenderThreads(render_settings_t *rs)
 
 int CmdRenderIterations(render_settings_t *rs)
 {
-	int count = fscanf(rs->input, "%i", &rs->max_iterations);
-	if (count == 0)
+	if (!ReadInteger(rs, &rs->max_iterations))
 	{
 		fprintf(stderr, "error: 'render_iterations' not enough arguments.\n");
 		return 1;
@@ -502,8 +509,7 @@ int CmdRender(render_settings_t *rs)
 {
 	int image_index;
 	image_t *image_ptr;
-	int count = fscanf(rs->input, "%i", &image_index);
-	if (count < 1)
+	if (!ReadInteger(rs, &image_index))
 	{
 		fprintf(stderr, "error: 'render' not enough arguments.\n");
 		return 1;
@@ -581,8 +587,7 @@ int CmdHalton(render_settings_t *rs)
 {
 	int image_index, number;
 	image_t *image_ptr;
-	int count = fscanf(rs->input, "%i %i", &image_index, &number);
-	if (count < 1)
+	if (!ReadInteger(rs, &image_index) || !ReadInteger(rs, &number))
 	{
 		fprintf(stderr, "error: 'halton' not enough arguments.\n");
 		return 1;
@@ -632,7 +637,11 @@ int CmdTransformTranslate(render_settings_t *rs)
 {
 	vector_t t;
 	matrix_t translate;
-	fscanf(rs->input, "%lf %lf %lf", &t.x, &t.y, &t.z);
+	if(!ReadVec3(rs, &t))
+	{
+		fprintf(stderr, "error: 'transform_translate' expected vec3.\n");
+		return 1;
+	}
 	translate = NewTranslateMatrix(t);
 	*rs->transform_ptr = MatrixTimesMatrix(*rs->transform_ptr, translate);
 	return 1;
@@ -642,7 +651,11 @@ int CmdTransformScale(render_settings_t *rs)
 {
 	vector_t t;
 	matrix_t scale;
-	fscanf(rs->input, "%lf %lf %lf", &t.x, &t.y, &t.z);
+	if(!ReadVec3(rs, &t))
+	{
+		fprintf(stderr, "error: 'transform_scale' expected vec3.\n");
+		return 1;
+	}
 	scale = NewScaleMatrix(t);
 	*rs->transform_ptr = MatrixTimesMatrix(*rs->transform_ptr, scale);
 	return 1;
@@ -653,7 +666,15 @@ int CmdTransformRotate(render_settings_t *rs)
 	vecc_t angle;
 	vector_t t;
 	matrix_t rotate;
-	fscanf(rs->input, "%lf, %lf %lf %lf", &angle, &t.x, &t.y, &t.z);
+	if(!ReadNumber(rs, &angle))
+	{
+		fprintf(stderr, "error: 'transform_rotate' expected number.\n");
+	}
+	if(!ReadVec3(rs, &t))
+	{
+		fprintf(stderr, "error: 'transform_rotate' expected vec3.\n");
+		return 1;
+	}
 	rotate = NewRotateMatrix(angle, t);
 	*rs->transform_ptr = MatrixTimesMatrix(*rs->transform_ptr, rotate);
 	return 1;
