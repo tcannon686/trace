@@ -21,7 +21,6 @@ vector_t PhongShader(
 	vector_t specular_color = vec3(0, 0, 0);
 	vector_t ambient_color;
 	vector_t V = VectorNormalize(VectorNegate(hit_ptr->position));
-	light_t *cur_light_ptr;
 	
 	vector_t ambient = PropGetOrDefault(vector, rp_ptr->scene_ptr, "ambient", vec4(0, 0, 0, 0));
 	int ao_samples = PropGetOrDefault(integer, rp_ptr->scene_ptr, "ao_samples", 0);
@@ -79,9 +78,12 @@ vector_t PhongShader(
 		ambient_color = VectorTimesVector(ambient_color, m_ambient);
 		
 		// For each light.
-		ListIterate(rp_ptr->lights_ptr, &cur_light_ptr)
+		for(
+			list_iterator_t it = ListIterator(rp_ptr->lights_ptr);
+			!ListIsEnd(&it);
+			ListNext(&it))
 		{
-			light_t l = *cur_light_ptr;
+			light_t l = *(light_t *) ListIteratorGet(&it).data_ptr;
 			vector_t Id, Is;
 			vector_t Lm = VectorMinusVector(l.position, hit_ptr->position);
 			vecc_t distance = VectorMagnitude(Lm);

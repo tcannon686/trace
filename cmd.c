@@ -48,8 +48,19 @@ int CmdVertex(render_settings_t *rs)
 		return 1;
 	}
 
+	primitive_t *primitive;
+	triangle_t *triangle_ptr;
+	primitive = (primitive_t *)ListGetLast(rs->primitives_ptr).data_ptr;
+	if(primitive->type != rs->triangle_class_ptr)
+	{
+		fprintf(stderr, "error: 'vertex' last primitive is not a triangle.");
+		return 1;
+	}
+
+	triangle_ptr = (triangle_t *) primitive->data;
+
 	MatrixTimesVectorP(
-		&rs->triangle_ptr->current.v[rs->current_point],
+		&triangle_ptr->v[rs->current_point],
 		rs->transform_ptr,
 		&vertex);
 
@@ -58,21 +69,21 @@ int CmdVertex(render_settings_t *rs)
 	{
 		vector_t normal;
 		normal = VectorNormalize(VectorCrossVector(
-			VectorMinusVector(rs->triangle_ptr->current.v2, rs->triangle_ptr->current.v0),
-			VectorMinusVector(rs->triangle_ptr->current.v1, rs->triangle_ptr->current.v0)));
-		rs->triangle_ptr->current.normal = normal;
-		rs->triangle_ptr->current.ba = VectorMinusVector(
-			rs->triangle_ptr->current.b,
-			rs->triangle_ptr->current.a);
-		rs->triangle_ptr->current.cb = VectorMinusVector(
-			rs->triangle_ptr->current.c,
-			rs->triangle_ptr->current.b);
-		rs->triangle_ptr->current.ac = VectorMinusVector(
-			rs->triangle_ptr->current.a,
-			rs->triangle_ptr->current.c);
-		rs->triangle_ptr->current.area = VectorMagnitude(VectorCrossVector(
-			rs->triangle_ptr->current.ba,
-			rs->triangle_ptr->current.cb));
+			VectorMinusVector(triangle_ptr->v2, triangle_ptr->v0),
+			VectorMinusVector(triangle_ptr->v1, triangle_ptr->v0)));
+		triangle_ptr->normal = normal;
+		triangle_ptr->ba = VectorMinusVector(
+			triangle_ptr->b,
+			triangle_ptr->a);
+		triangle_ptr->cb = VectorMinusVector(
+			triangle_ptr->c,
+			triangle_ptr->b);
+		triangle_ptr->ac = VectorMinusVector(
+			triangle_ptr->a,
+			triangle_ptr->c);
+		triangle_ptr->area = VectorMagnitude(VectorCrossVector(
+			triangle_ptr->ba,
+			triangle_ptr->cb));
 		/*if(current_normal == 0)
 		{
 		triangle_ptr->current.n[0] = normal;
@@ -80,12 +91,13 @@ int CmdVertex(render_settings_t *rs)
 		triangle_ptr->current.n[2] = normal;
 		}*/
 
-		rs->triangle_ptr->current.origin =
+		triangle_ptr->origin =
 			VectorTimesScalar(
-				VectorPlusVector(rs->triangle_ptr->current.v0,
-					VectorPlusVector(rs->triangle_ptr->current.v1, rs->triangle_ptr->current.v2)),
+				VectorPlusVector(triangle_ptr->v0,
+					VectorPlusVector(triangle_ptr->v1, triangle_ptr->v2)),
 				1.0 / 3.0);
-		rs->triangle_ptr->current.material_ptr = rs->current_material_ptr;
+		primitive->origin = triangle_ptr->origin;
+		triangle_ptr->material_ptr = rs->current_material_ptr;
 		rs->current_point = 0;
 	}
 	return 1;
@@ -93,29 +105,18 @@ int CmdVertex(render_settings_t *rs)
 
 int CmdMakeFace(render_settings_t *rs)
 {
-	if(rs->triangles_ptr == NULL)
-	{
-		rs->triangle_ptr = malloc(sizeof(tri_list_t));
-		memset(rs->triangle_ptr, 0, sizeof(tri_list_t));
-		rs->triangles_ptr = rs->triangle_ptr;
-	}
-	else
-	{
-		if (rs->triangle_ptr->last_ptr != NULL)
-			rs->triangle_ptr->last_ptr->next_ptr = rs->triangle_ptr;
-		rs->triangle_ptr->next_ptr = malloc(sizeof(tri_list_t));
-		memset(rs->triangle_ptr->next_ptr, 0, sizeof(tri_list_t));
-		rs->triangle_ptr->next_ptr->last_ptr = rs->triangle_ptr;
-		rs->triangle_ptr = rs->triangle_ptr->next_ptr;
-		rs->triangle_ptr->next_ptr = NULL;
-	}
-	
+	primitive_t *primitive_ptr;
+	primitive_ptr = (primitive_t *)malloc(sizeof(triangle_t));
+	primitive_ptr->type = rs->triangle_class_ptr;
+	primitive_ptr->data = malloc(sizeof(triangle_t));
+	ListAppendPointer(rs->primitives_ptr, primitive_ptr);
 	return 1;
 }
 
 int CmdNormal(render_settings_t *rs)
 {
 	vector_t normal;
+
 
 	if (!ReadVec3(rs, &normal))
 	{
@@ -124,8 +125,19 @@ int CmdNormal(render_settings_t *rs)
 	}
 	normal.w = 0;
 
+	primitive_t *primitive;
+	triangle_t *triangle_ptr;
+	primitive = (primitive_t *)ListGetLast(rs->primitives_ptr).data_ptr;
+	if(primitive->type != rs->triangle_class_ptr)
+	{
+		fprintf(stderr, "error: 'normal' last primitive is not a triangle.");
+		return 1;
+	}
+
+	triangle_ptr = (triangle_t *) primitive->data;
+
 	MatrixTimesVectorP(
-		&rs->triangle_ptr->current.n[rs->current_normal],
+		&triangle_ptr->n[rs->current_normal],
 		rs->transform_ptr,
 		&normal);
 
@@ -146,7 +158,19 @@ int CmdTexCo2d(render_settings_t *rs)
 		fprintf(stderr, "error: 'texco2d' not enough arguments.\n");
 		return 1;
 	}
-	rs->triangle_ptr->current.t[rs->current_texco] = co;
+	
+	primitive_t *primitive;
+	triangle_t *triangle_ptr;
+	primitive = (primitive_t *)ListGetLast(rs->primitives_ptr).data_ptr;
+	if(primitive->type != rs->triangle_class_ptr)
+	{
+		fprintf(stderr, "error: 'vertex' last primitive is not a triangle.");
+		return 1;
+	}
+
+	triangle_ptr = (triangle_t *) primitive->data;
+
+	triangle_ptr->t[rs->current_texco] = co;
 	
 	rs->current_texco++;
 	if (rs->current_texco > 2)
@@ -532,23 +556,16 @@ int CmdRender(render_settings_t *rs)
 	start_time = clock();
 
 	printf("info: generating tree.\n");
-	CleanTriangles(&rs->triangles_ptr);
-	int tri_count = 0;
+	CleanPrimitives(rs, rs->primitives_ptr);
+	int tri_count = ListSize(rs->primitives_ptr);
 	
-	for(tri_list_t *current = rs->triangles_ptr;
-		current != NULL;
-		current = current->next_ptr)
-	{
-		tri_count ++;
-	}
-	
-	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0, &max_depth);
+	kd_tree_t *tree_ptr = GenerateTree(rs->primitives_ptr, 0, &max_depth);
 	end_time = clock();
 	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
 	start_time = end_time;
 	printf("info: elapsed time %f seconds.\n", elapsed_secs);
 	printf("info: tree depth %i.\n", max_depth);
-	printf("info: triangle count %i.\n", tri_count);
+	printf("info: primitive count %i.\n", tri_count);
 	printf("info: rendering\n");
 	
 	Render(
@@ -613,10 +630,10 @@ int CmdHalton(render_settings_t *rs)
 	return 1;
 }
 
-int CmdPrintTriangles(render_settings_t *rs)
+int CmdPrintPrimitives(render_settings_t *rs)
 {
-	printf("triangles: \n");
-	PrintTriangles(rs->triangles_ptr);
+	printf("primitives: \n");
+	PrintPrimitives(rs->primitives_ptr);
 	return 1;
 }
 
@@ -716,7 +733,7 @@ void CommandsSetStandard(hashtable_t *table_cmds)
 #endif
 	SetCommand(table_cmds, "render", CmdRender);
 	SetCommand(table_cmds, "halton", CmdHalton);
-	SetCommand(table_cmds, "print_triangles", CmdPrintTriangles);
+	SetCommand(table_cmds, "print_primitives", CmdPrintPrimitives);
 	SetCommand(table_cmds, "transform_pop", CmdTransformPop);
 	SetCommand(table_cmds, "transform_push", CmdTransformPush);
 	SetCommand(table_cmds, "transform_translate", CmdTransformTranslate);

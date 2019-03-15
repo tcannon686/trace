@@ -11,6 +11,9 @@ typedef struct material material_t;
 struct triangle;
 typedef struct triangle triangle_t;
 
+struct primitive;
+typedef struct primitive primitive_t;
+
 typedef struct
 {
 	vector_t o;
@@ -28,7 +31,7 @@ typedef struct
 	ray_t ray;
 	kd_tree_t *tree_ptr;
 	kd_tree_t *node_ptr;
-	triangle_t *triangle_ptr;
+	primitive_t *primitive_ptr;
 } hit_t;
 
 
@@ -59,7 +62,6 @@ typedef struct
 } texture2d_t;
 
 typedef void (*pixel_traced_callback_t)(int x, int y, vector_t color, void *data);
-typedef int (*hit_test_t)(hit_t *hit_ptr, ray_t *ray, void *primitive);
 
 typedef struct scene
 {
@@ -104,9 +106,26 @@ typedef struct material
 	hashtable_t *table;
 } material_t;
 
+typedef struct
+{
+	vector_t a;
+	vector_t b;
+	vector_t origin;
+} bounding_box_t;
+
+typedef struct primitive_class
+{
+	const char *name;
+	int (*hit_test)(primitive_t *self, hit_t *hit_ptr, ray_t *ray);
+	void (*gen_box)(primitive_t *self);
+	void (*print)(primitive_t *self);
+} primitive_class_t;
+
 typedef struct primitive
 {
-	hit_test_t hit_test;
+	primitive_class_t *type;
+	bounding_box_t box;
+	vector_t origin;
 	void *data;
 } primitive_t;
 
@@ -191,24 +210,6 @@ typedef struct triangle
 	material_t *material_ptr;
 } triangle_t;
 
-struct tri_list;
-typedef struct tri_list tri_list_t;
-
-typedef struct tri_list
-{
-	triangle_t current;
-	tri_list_t *last_ptr;
-	tri_list_t *next_ptr;
-} tri_list_t;
-
-
-typedef struct
-{
-	vector_t a;
-	vector_t b;
-	vector_t origin;
-} bounding_box_t;
-
 typedef struct kd_tree
 {
 	vector_t median;
@@ -217,7 +218,7 @@ typedef struct kd_tree
 	kd_tree_t *left_ptr;
 	kd_tree_t *right_ptr;
 	kd_tree_t *parent_ptr;
-	tri_list_t *triangles_ptr;
+	list_t *primitives_ptr;
 	bounding_box_t box;
 } kd_tree_t;
 
@@ -232,8 +233,8 @@ typedef struct render_settings
 {
 	matrix_t transform_stack[32];
 	matrix_t *transform_ptr;
-	tri_list_t *triangles_ptr;
-	tri_list_t *triangle_ptr;
+	list_t *primitives_ptr;
+	primitive_t *primitive_ptr;
 	list_t *materials_ptr;
 	material_t *material_ptr;
 	material_t *current_material_ptr;
@@ -244,6 +245,7 @@ typedef struct render_settings
 	list_t *images_ptr;
 	image_t *image_ptr;
 	scene_t *scene_ptr;
+	primitive_class_t *triangle_class_ptr;
 	int current_point;
 	int current_normal;
 	int current_texco;
@@ -266,11 +268,11 @@ vector_t RandomDirection();
 
 ray_t NewRay(vector_t o, vector_t d);
 
-kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result);
-void CleanTriangles(tri_list_t **triangles_ptr);
+kd_tree_t *GenerateTree(list_t *primitives_ptr, int depth, int *depth_result);
+void CleanPrimitives(render_settings_t *rs, list_t *primitives_ptr);
 
-int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t *tri);
-int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr);
+int RayTriangle(primitive_t *primitive, hit_t *hit_ptr, ray_t *ray);
+int RayPrimitives(list_t *primitives_ptr, hit_t *hit_ptr, ray_t *ray);
 int RayTree(hit_t *hit_ptr, ray_t ray, kd_tree_t *tree_ptr);
 
 vecc_t RayBox(ray_t *ray, bounding_box_t box);
@@ -278,10 +280,9 @@ vector_t Barycentric(vector_t v, triangle_t *tri);
 
 vector_t VectorMix(vector_t left, vector_t right, vecc_t a);
 
-void PrintTriangles(tri_list_t *triangles_ptr);
-
-void FreeTriList(tri_list_t *list_ptr);
+void PrintPrimitives(list_t *primitives_ptr);
 void FreeTree(kd_tree_t *tree_ptr);
+void PrimitiveFree(void *ptr);
 
 void RenderImageCallback(int x, int y, vector_t color, void *data);
 

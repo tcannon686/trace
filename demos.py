@@ -6,6 +6,10 @@ This file runs all of the demo files.
 import sys
 sys.path.append('demos/')
 
+def dsimple():
+	import simple
+	simple.run('Simple', 'simple.png', render_basic, 'simple.ray' if output_code else None, render_window)
+
 def d1():
 	import demo1
 	demo1.run('Demo 1', 'demo1.png', render_basic, 'demo1.ray' if output_code else None, render_window)
@@ -42,6 +46,7 @@ demos = {
 	"demoAnimation1" : da1,
 	"demoAnimation2" : da2,
 	"demoAnimation3" : da3,
+	"simple" : dsimple
 }
 
 demos_sorted = demos.keys()

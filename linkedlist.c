@@ -101,6 +101,50 @@ void ListRemove(list_t *list_ptr, int index, int should_free)
 	free(element);
 }
 
+void ListRemoveValue(list_t *list_ptr, list_data_t value, int should_free)
+{
+	list_ptr->count --;
+	list_element_t *element = list_ptr->base_ptr;
+	while(1)
+	{
+		if(list_ptr->cmp(element->data.data_ptr, value.data_ptr) == 0)
+			break;
+		element = element->next_ptr;
+	}
+
+	if(element == NULL)
+		return;
+	
+	if(element->next_ptr != NULL)
+		element->next_ptr->last_ptr = element->last_ptr;
+	if(element->last_ptr != NULL)
+		element->last_ptr->next_ptr = element->next_ptr;
+	else
+	{
+		list_ptr->base_ptr = element->next_ptr;
+	}
+	
+	if(should_free)
+		list_ptr->free(element->data.data_ptr);
+	
+	free(element);
+}
+
+void ListRemoveIterator(list_t *list_ptr, list_iterator_t *iterator, int should_free)
+{
+	list_element_t *element = iterator->element;
+	if(element->next_ptr != NULL)
+		element->next_ptr->last_ptr = element->last_ptr;
+	if(element->last_ptr != NULL)
+		element->last_ptr->next_ptr = element->next_ptr;
+	else
+	{
+		list_ptr->base_ptr = element->next_ptr;
+	}
+
+	free(element);
+}
+
 void ListRemoveFirst(list_t *list_ptr, int should_free)
 {
 	assert(list_ptr->count > 0);
@@ -140,5 +184,26 @@ int ListIndexOf(list_t *list_ptr, list_data_t data)
 		i ++;
 	}
 	return -1;
+}
+
+list_iterator_t ListIterator(list_t *list_ptr)
+{
+	list_iterator_t ret;
+	ret.element = list_ptr->base_ptr;
+	if(list_ptr->base_ptr != NULL)
+		ret.next = ret.element->next_ptr;
+	else
+		ret.next = NULL;
+	
+	return ret;
+}
+
+void ListNext(list_iterator_t *iterator)
+{
+	iterator->element = iterator->next;
+	if(iterator->element != NULL)
+	{
+		iterator->next = iterator->element->next_ptr;
+	}
 }
 

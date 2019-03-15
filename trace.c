@@ -12,6 +12,7 @@
 #endif
 #include <time.h>
 #include <ctype.h>
+#include <assert.h>
 
 #ifndef min
 #define min(a, b)			a < b ? a : b
@@ -117,8 +118,10 @@ vector_t Barycentric(vector_t v, triangle_t *tri)
 	return ret;
 }
 
-int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t *tri)
+int RayTriangle(primitive_t *self, hit_t *hit_ptr, ray_t *ray)
 {
+	triangle_t *tri = (triangle_t *)self->data;
+
 	vecc_t ldotn = VectorDotVector(ray->d, tri->normal);
 	if(ldotn == 0)
 		return 0;
@@ -147,7 +150,7 @@ int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t *tri)
 	hit_ptr->material_ptr = tri->material_ptr;
 	hit_ptr->position = pos;
 	hit_ptr->ray = *ray;
-	hit_ptr->triangle_ptr = tri;
+	hit_ptr->primitive_ptr = self;
 	
 	hit_ptr->normal =
 		VectorNormalize(VectorPlusVector(
@@ -166,81 +169,97 @@ int RayTriangle(hit_t *hit_ptr, ray_t *ray, triangle_t *tri)
 	return 1;
 }
 
-int RayTriangles(hit_t *hit_ptr, ray_t *ray, tri_list_t *triangles_ptr)
+int RayPrimitives(list_t *primitives_ptr, hit_t *hit_ptr, ray_t *ray)
 {
-	tri_list_t *current_ptr = triangles_ptr;
-	int ret = 0;
-	while(current_ptr != NULL)
+	int ret;
+	primitive_t *primitive;
+	list_iterator_t iterator;
+
+	ret = 0;
+	/* Perform hit tests on each primitive in the list. */
+	for(
+		iterator = ListIterator(primitives_ptr);
+		!ListIsEnd(&iterator);
+		ListNext(&iterator))
 	{
-		ret = ret || RayTriangle(hit_ptr, ray, &current_ptr->current);
-		current_ptr = current_ptr->next_ptr;
+		primitive = (primitive_t *) ListIteratorGet(&iterator).data_ptr;
+		if(primitive->type->hit_test(primitive, hit_ptr, ray))
+			ret = 1;
 	}
 	return ret;
 }
 
-bounding_box_t BoundingBox(triangle_t tri)
+void BoundingBoxTriangle(primitive_t *primitive)
 {
 	bounding_box_t ret;
-	ret.a = tri.v[0];
-	ret.b = tri.v[1];
+	triangle_t *tri = (triangle_t *) primitive->data;
+	ret.a = tri->v[0];
+	ret.b = tri->v[1];
 	for(int i = 0; i < 3; i ++)
 	{
 		for(int j = 0; j < 3; j ++)
 		{
-			if(tri.v[i].m[j] < ret.a.m[j])
-				ret.a.m[j] = tri.v[i].m[j];
-			if(tri.v[i].m[j] > ret.b.m[j])
-				ret.b.m[j] = tri.v[i].m[j];
+			if(tri->v[i].m[j] < ret.a.m[j])
+				ret.a.m[j] = tri->v[i].m[j];
+			if(tri->v[i].m[j] > ret.b.m[j])
+				ret.b.m[j] = tri->v[i].m[j];
 		}
 	}
 	
 	ret.origin = VectorMean(ret.a, ret.b);
-	return ret;
+	
+	primitive->box = ret;
 }
 
-bounding_box_t BoundingBoxTriList(tri_list_t *triangles_ptr)
+bounding_box_t BoundingBoxPrimitiveList(list_t *primitives_ptr)
 {
 	bounding_box_t ret;
-	ret.a = triangles_ptr->current.v[0];
-	ret.b = triangles_ptr->current.v[1];
+	primitive_t *primitive;
+	list_iterator_t iterator;
+	primitive = (primitive_t *) ListGetFirst(primitives_ptr).data_ptr;
+	ret = primitive->box;
 	
-	while(triangles_ptr != NULL)
+	for(
+		iterator = ListIterator(primitives_ptr);
+		!ListIsEnd(&iterator);
+		ListNext(&iterator))
 	{
-		triangle_t tri = triangles_ptr->current;
+		primitive = (primitive_t *)ListIteratorGet(&iterator).data_ptr;
 		for(int i = 0; i < 3; i ++)
 		{
-			for(int j = 0; j < 3; j ++)
-			{
-				if(tri.v[i].m[j] < ret.a.m[j])
-					ret.a.m[j] = tri.v[i].m[j];
-				if(tri.v[i].m[j] > ret.b.m[j])
-					ret.b.m[j] = tri.v[i].m[j];
-			}
+			if(primitive->box.a.m[i] < ret.a.m[i])
+				ret.a.m[i] = primitive->box.a.m[i];
+			if(primitive->box.b.m[i] > ret.b.m[i])
+				ret.b.m[i] = primitive->box.b.m[i];
 		}
-		triangles_ptr = triangles_ptr->next_ptr;
 	}
 	
 	ret.origin = VectorMean(ret.a, ret.b);
 	return ret;
 }
 
-bounding_box_t BoundingBoxTriListOrigins(tri_list_t *triangles_ptr)
+bounding_box_t BoundingBoxOriginsPrimitiveList(list_t *primitives_ptr)
 {
 	bounding_box_t ret;
-	ret.a = triangles_ptr->current.origin;
-	ret.b = triangles_ptr->current.origin;
+	list_iterator_t iterator;
+	primitive_t *primitive;
+	primitive = (primitive_t *) ListGetFirst(primitives_ptr).data_ptr;
+	ret.a = primitive->origin;
+	ret.b = primitive->origin;
 	
-	while(triangles_ptr != NULL)
+	for(
+		iterator = ListIterator(primitives_ptr);
+		!ListIsEnd(&iterator);
+		ListNext(&iterator))
 	{
-		triangle_t tri = triangles_ptr->current;
-		for(int j = 0; j < 3; j ++)
+		primitive = (primitive_t *)ListIteratorGet(&iterator).data_ptr;
+		for(int i = 0; i < 3; i ++)
 		{
-			if(tri.origin.m[j] < ret.a.m[j])
-				ret.a.m[j] = tri.origin.m[j];
-			if(tri.origin.m[j] > ret.b.m[j])
-				ret.b.m[j] = tri.origin.m[j];
+			if(primitive->origin.m[i] < ret.a.m[i])
+				ret.a.m[i] = primitive->origin.m[i];
+			if(primitive->origin.m[i] > ret.b.m[i])
+				ret.b.m[i] = primitive->origin.m[i];
 		}
-		triangles_ptr = triangles_ptr->next_ptr;
 	}
 	
 	ret.origin = VectorMean(ret.a, ret.b);
@@ -274,39 +293,38 @@ vector_t VectorMix(vector_t left, vector_t right, vecc_t a)
 
 
 // Remove triangles with area of 0.
-void CleanTriangles(tri_list_t **triangles_ptr)
+
+void CleanPrimitives(render_settings_t *rs, list_t *primitives_ptr)
 {
-	tri_list_t *current = *triangles_ptr;
-	while(current != NULL)
+	list_iterator_t iterator;
+	for(
+		iterator = ListIterator(primitives_ptr);
+		!ListIsEnd(&iterator);
+		ListNext(&iterator))
 	{
-		tri_list_t *next_ptr = current->next_ptr;
-		
-		if(current->current.area <= THRESHOLD)
+		primitive_t *primitive = (primitive_t *)ListIteratorGet(&iterator).data_ptr;
+		if(primitive->type == rs->triangle_class_ptr
+			&& ((triangle_t *)primitive->data)->area <= THRESHOLD)
 		{
-			if(current->last_ptr != NULL)
-				current->last_ptr->next_ptr = next_ptr;
-			else
-				*triangles_ptr = next_ptr;
-			if(next_ptr != NULL)
-				next_ptr->last_ptr = current->last_ptr;
+			// Remove the triangle.
+			ListRemoveIterator(primitives_ptr, &iterator, 1);
 		}
 		else
 		{
 			// Reverse normal if necessary
-			/*if(VectorDotVector(current->current.normal, current->current.n0) < 0)
-				current->current.normal = VectorNegate(current->current.normal);*/
+			//if(VectorDotVector(current->current.normal, current->current.n0) < 0)
+			//	current->current.normal = VectorNegate(current->current.normal);
 		}
-		current = next_ptr;
 	}
 }
 
 /*
  * Generates a tree and stores the maximum depth in depth_result.
  */
-kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result) {
+kd_tree_t *GenerateTree(list_t *primitives_ptr, int depth, int *depth_result) {
 
 	// Return nothing if no triangles are provided
-	if(triangles_ptr == NULL)
+	if(primitives_ptr == NULL)
 		return NULL;
 	
 	
@@ -317,29 +335,48 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result)
 			*depth_result = depth;
 	}
 	
+	list_iterator_t it;
+	primitive_t *primitive;
+
 	// Create a new node with the given triangles
 	kd_tree_t *tree_ptr = (kd_tree_t *)malloc(sizeof(kd_tree_t));
 	memset(tree_ptr, 0, sizeof(kd_tree_t));
-	tree_ptr->box = Expand(BoundingBoxTriList(triangles_ptr));
-	tree_ptr->triangles_ptr = triangles_ptr;
 
-	bounding_box_t box_origins = BoundingBoxTriListOrigins(triangles_ptr);
+	// Calculate the bounding boxes of the primitives.
+	for(
+		it = ListIterator(primitives_ptr);
+		!ListIsEnd(&it);
+		ListNext(&it))
+	{
+		primitive = (primitive_t *)ListIteratorGet(&it).data_ptr;
+		primitive->type->gen_box(primitive);
+	}
+	tree_ptr->box = Expand(BoundingBoxPrimitiveList(primitives_ptr));
+	// This node should have all the polygons given to it.
+	tree_ptr->primitives_ptr = primitives_ptr;
+
+	bounding_box_t box_origins = BoundingBoxOriginsPrimitiveList(primitives_ptr);
 
 	vector_t origin = vec3(0, 0, 0);
-	vector_t last = triangles_ptr->current.origin;
-	tri_list_t *current_ptr;
+	vector_t last = ((primitive_t *)ListGetFirst(primitives_ptr).data_ptr)->origin;
 	int count = 0, same = 1;
 
-	for(current_ptr = triangles_ptr; current_ptr != NULL; current_ptr = current_ptr->next_ptr)
+	// Calculate the median of the primitives origins.
+	for(
+		it = ListIterator(primitives_ptr);
+		!ListIsEnd(&it);
+		ListNext(&it))
 	{
-		origin = VectorPlusVector(origin, current_ptr->current.origin);
-		if(same && !VectorEqualsVector(last, current_ptr->current.origin))
+		primitive = (primitive_t *)ListIteratorGet(&it).data_ptr;
+		origin = VectorPlusVector(origin, primitive->origin);
+		if(same && !VectorEqualsVector(last, primitive->origin))
 			same = 0;
 		count ++;
 	}
 
 	origin = VectorTimesScalar(origin, 1.0 / count);
 
+	// Calculate the largest dimension and split along that axis.
 	vector_t dimensions = VectorMinusVector(box_origins.b, box_origins.a);
 	if(dimensions.x > dimensions.y && dimensions.x > dimensions.z)
 		tree_ptr->axis_index = 0;
@@ -348,135 +385,83 @@ kd_tree_t *GenerateTree(tri_list_t *triangles_ptr, int depth, int *depth_result)
 	else if(dimensions.z > dimensions.x && dimensions.z > dimensions.y)
 		tree_ptr->axis_index = 2;
 	else
-		// If there is no longest axis, split by 
+		// If there is no longest axis, split by depth % 3
 		tree_ptr->axis_index = depth % 3;
 	
 	tree_ptr->axis = vec4(0, 0, 0, 0);
 	tree_ptr->axis.m[tree_ptr->axis_index] = 1;
 	tree_ptr->median = origin;
 
-	// Break if this is a leaf node (i.e. all the triangles have the same origin)
+	// Break if this is a leaf node (i.e. all the primitives have the same origin)
 	if(same == 1)
 		return tree_ptr;
 	
 	// Otherwise split the triangles based on left or right
 
-	// There should be no triangles at this node
-	tree_ptr->triangles_ptr = NULL;
+	// There should be no primitives at this node
+	tree_ptr->primitives_ptr = NULL;
 
-	tri_list_t
-		*left_triangles_ptr = NULL,
-		*right_triangles_ptr = NULL,
-		*left_ptr = NULL,
-		*right_ptr = NULL;
-	tri_list_t *next_ptr;
-
+	list_t
+		*left_primitives_ptr = NULL,
+		*right_primitives_ptr = NULL;
 	for(
-		current_ptr = triangles_ptr; current_ptr != NULL; current_ptr = next_ptr)
+		it = ListIterator(primitives_ptr);
+		!ListIsEnd(&it);
+		ListNext(&it))
 	{
-		// Make next_ptr be the next triangle, so that iteration continues
-		// even if triangles are added or removed from the list
-		next_ptr = current_ptr->next_ptr;
-
-		vector_t direction = VectorMinusVector(current_ptr->current.origin, origin);
+		primitive = (primitive_t *)ListIteratorGet(&it).data_ptr;
+		vector_t direction = VectorMinusVector(primitive->origin, origin);
 		vecc_t dot = VectorDotVector(direction, tree_ptr->axis);
 
 		// Left side
 		if(dot <= 0)
 		{
+			ListRemoveIterator(primitives_ptr, &it, 0);
 			// If there are no triangles yet
-			if(left_triangles_ptr == NULL)
+			if(left_primitives_ptr == NULL)
 			{
-				// Remove the triangle from the list
-				if(current_ptr->last_ptr != NULL)
-					current_ptr->last_ptr->next_ptr = current_ptr->next_ptr;
-				if(current_ptr->next_ptr != NULL)
-					current_ptr->next_ptr->last_ptr = current_ptr->last_ptr;
-
-				// Move the triangle to the left list
-				left_triangles_ptr = current_ptr;
-				left_ptr = current_ptr;
-				current_ptr->last_ptr = NULL;
-				current_ptr->next_ptr = NULL;
+				left_primitives_ptr = ListNew(PrimitiveFree, NULL);
 			}
-			// If there are triangles
-			else
-			{
-				// Remove the triangle from the list
-				if(current_ptr->last_ptr != NULL)
-					current_ptr->last_ptr->next_ptr = current_ptr->next_ptr;
-				if(current_ptr->next_ptr != NULL)
-					current_ptr->next_ptr->last_ptr = current_ptr->last_ptr;
-
-				// Move the triangle to the left list
-				left_ptr->next_ptr = current_ptr;
-				current_ptr->last_ptr = left_ptr;
-				current_ptr->next_ptr = NULL;
-				left_ptr = current_ptr;
-			}
+			ListAppendPointer(left_primitives_ptr, (void *) primitive);
 		}
 		// Right side
 		else
 		{
+			ListRemoveIterator(primitives_ptr, &it, 0);
 			// If there are no triangles yet
-			if(right_triangles_ptr == NULL)
+			if(right_primitives_ptr == NULL)
 			{
-				// Remove the triangle from the list
-				if(current_ptr->last_ptr != NULL)
-					current_ptr->last_ptr->next_ptr = current_ptr->next_ptr;
-				if(current_ptr->next_ptr != NULL)
-					current_ptr->next_ptr->last_ptr = current_ptr->last_ptr;
-
-				// Move the triangle to the right list
-				right_triangles_ptr = current_ptr;
-				right_ptr = current_ptr;
-				current_ptr->last_ptr = NULL;
-				current_ptr->next_ptr = NULL;
+				right_primitives_ptr = ListNew(PrimitiveFree, NULL);
 			}
-			// If there are triangles
-			else
-			{
-				// Remove the triangle from the list
-				if(current_ptr->last_ptr != NULL)
-					current_ptr->last_ptr->next_ptr = current_ptr->next_ptr;
-				if(current_ptr->next_ptr != NULL)
-					current_ptr->next_ptr->last_ptr = current_ptr->last_ptr;
-
-				// Move the triangle to the right list
-				right_ptr->next_ptr = current_ptr;
-				current_ptr->last_ptr = right_ptr;
-				current_ptr->next_ptr = NULL;
-				right_ptr = current_ptr;
-			}
+			ListAppendPointer(right_primitives_ptr, (void *) primitive);
 		}
 	}
 
-	tree_ptr->left_ptr = GenerateTree(left_triangles_ptr, depth + 1, depth_result);
+	// Free the old list.
+	ListFree(primitives_ptr);
+
+	tree_ptr->left_ptr = GenerateTree(left_primitives_ptr, depth + 1, depth_result);
 	if(tree_ptr->left_ptr != NULL)
 		tree_ptr->left_ptr->parent_ptr = tree_ptr;
-	tree_ptr->right_ptr = GenerateTree(right_triangles_ptr, depth + 1, depth_result);
+	tree_ptr->right_ptr = GenerateTree(right_primitives_ptr, depth + 1, depth_result);
 	if(tree_ptr->right_ptr != NULL)
 		tree_ptr->right_ptr->parent_ptr = tree_ptr;
 	
 	return tree_ptr;
 }
 
-void FreeTriList(tri_list_t *list_ptr) {
-	tri_list_t *current_ptr;
-	tri_list_t *next_ptr;
-	current_ptr = list_ptr;
-	while(current_ptr != NULL) {
-		next_ptr = current_ptr->next_ptr;
-		free(current_ptr);
-		current_ptr = next_ptr;
-	}
+void PrimitiveFree(void *pointer)
+{
+	primitive_t *primitive_ptr = (primitive_t *)pointer;
+	free(primitive_ptr->data);
+	free(primitive_ptr);
 }
 
 void FreeTree(kd_tree_t *tree_ptr) {
 	if(tree_ptr == NULL)
 		return;
-	if(tree_ptr->triangles_ptr != NULL)
-		FreeTriList(tree_ptr->triangles_ptr);
+	if(tree_ptr->primitives_ptr != NULL)
+		ListFree(tree_ptr->primitives_ptr);
 	if(tree_ptr->left_ptr != NULL)
 		FreeTree(tree_ptr->left_ptr);
 	if(tree_ptr->right_ptr != NULL)
@@ -574,12 +559,14 @@ int RayTreeRecursive(hit_t *hit_ptr, ray_t *ray, kd_tree_t *tree_ptr)
 	vecc_t box_hit = RayBox(ray, tree_ptr->box);
 	if(box_hit < INFINITY && (box_hit < hit_ptr->t || hit_ptr->t >= INFINITY))
 	{
-		if(tree_ptr->triangles_ptr != NULL)
+		if(tree_ptr->primitives_ptr != NULL)
 		{
-			int hit = RayTriangles(hit_ptr, ray, tree_ptr->triangles_ptr);
-			if(hit)
+			if(RayPrimitives(tree_ptr->primitives_ptr, hit_ptr, ray))
+			{
 				hit_ptr->node_ptr = tree_ptr;
-			return hit;
+				return 1;
+			}
+			return 0;
 		}
 		
 		int left = 0, right = 0;
@@ -606,14 +593,14 @@ int RayTree(hit_t *hit_ptr, ray_t ray, kd_tree_t *tree_ptr)
 
 void PrintTree(kd_tree_t *tree_ptr, int indent)
 {
-	const char *boxA, *boxB, *median, *vertex;
+	const char *boxA, *boxB, *median;
 	boxA = VectorToString(tree_ptr->box.a);
 	boxB = VectorToString(tree_ptr->box.b);
 	median = VectorToString(tree_ptr->median);
 	
 	for(int i = 0; i < indent; i++)
 		printf(" ");
-	if(tree_ptr->triangles_ptr != NULL)
+	if(tree_ptr->primitives_ptr != NULL)
 		printf("leaf node ");
 	printf("{\n");
 	for(int i = 0; i < indent; i++)
@@ -625,18 +612,19 @@ void PrintTree(kd_tree_t *tree_ptr, int indent)
 	for (int i = 0; i < indent; i++)
 		printf(" ");
 	printf("    Median: %s\n", median);
-	for (tri_list_t *current = tree_ptr->triangles_ptr; current != NULL; current = current->next_ptr) {
-		for (int i = 0; i < indent; i++)
-			printf(" ");
-		printf("    Triangle %p:\n", current);
-		for (int i = 0; i < 3; i++) {
-			vertex = VectorToString(current->current.v[i]);
-			for (int j = 0; j < indent; j++)
-				printf(" ");
-			printf("        Vertex: %s\n", median);
-			free((void *)vertex);
-		}
+	printf("    Children: \n");
+	
+	list_iterator_t iterator;
+	primitive_t *primitive;
+	for(
+		iterator = ListIterator(tree_ptr->primitives_ptr);
+		!ListIsEnd(&iterator);
+		ListNext(&iterator))
+	{
+		primitive = (primitive_t *) ListIteratorGet(&iterator).data_ptr;
+		printf("        %s\n", primitive->type->name);
 	}
+
 	free((void *)boxA);
 	free((void *)boxB);
 	free((void *)median);
@@ -651,24 +639,28 @@ void PrintTree(kd_tree_t *tree_ptr, int indent)
 	printf("}\n");
 }
 
-void PrintTriangles(tri_list_t *triangles_ptr) {
-	tri_list_t *current_ptr = triangles_ptr;
-	while(current_ptr != NULL)
+void PrintTriangle(primitive_t *self)
+{
+	triangle_t *tri = (triangle_t *)self->data;
+	printf("triangle:\n");
+	PrintVector(tri->v0);
+	printf("\n");
+	PrintVector(tri->v1);
+	printf("\n");
+	PrintVector(tri->v1);
+	printf("\n");
+}
+
+void PrintPrimitives(list_t *primitives) {
+	list_iterator_t iterator;
+	primitive_t *current;
+	for(
+		iterator = ListIterator(primitives);
+		!ListIsEnd(&iterator);
+		ListNext(&iterator))
 	{
-		const char *v0, *v1, *v2, *n, *o;
-		v0 = VectorToString(current_ptr->current.v0);
-		v1 = VectorToString(current_ptr->current.v1);
-		v2 = VectorToString(current_ptr->current.v2);
-		n = VectorToString(current_ptr->current.normal);
-		o = VectorToString(current_ptr->current.origin);
-		printf("triangle: {\n    %s\n    %s\n    %s\n\n    normal: %s\n    origin: %s\n}\n",
-			v0, v1, v2, n, o);
-		free((void *)v0);
-		free((void *)v1);
-		free((void *)v2);
-		free((void *)n);
-		free((void *)o);
-		current_ptr = current_ptr->next_ptr;
+		current = (primitive_t *) ListIteratorGet(&iterator).data_ptr;
+		current->type->print(current);
 	}
 }
 
@@ -1100,6 +1092,12 @@ int main(int argc, char **argv)
 	hashtable_t *table_cmds = HashTableNewDefault();
 	CommandsSetStandard(table_cmds);
 	CommandsSetTexture(table_cmds);
+
+	primitive_class_t triangle_class;
+	triangle_class.gen_box = BoundingBoxTriangle;
+	triangle_class.hit_test = RayTriangle;
+	triangle_class.name = "triangle";
+	triangle_class.print = PrintTriangle;
 	
 	scene_t scene;
 	scene.table = HashTableNewDefault();
@@ -1108,9 +1106,10 @@ int main(int argc, char **argv)
 	render_settings_t *rs = &render_settings;
 	rs->transform_ptr = rs->transform_stack;
 	IdentityMatrixP(rs->transform_ptr);
+
+	rs->triangle_class_ptr = &triangle_class;
 	
-	rs->triangles_ptr = NULL;
-	rs->triangle_ptr = NULL;
+	rs->primitives_ptr = ListNew(PrimitiveFree, NULL);
 	rs->materials_ptr = ListNew(MaterialFree, NULL);
 	rs->current_material_ptr = NULL;
 	rs->lights_ptr = ListNew(LightFree, NULL);

@@ -21,6 +21,12 @@ typedef struct list_element
 	list_element_t *last_ptr;
 } list_element_t;
 
+typedef struct list_iterator
+{
+	list_element_t *element;
+	list_element_t *next;
+} list_iterator_t;
+
 typedef struct
 {
 	list_element_t *base_ptr;
@@ -62,18 +68,15 @@ list_data_t ListGetLast(list_t *list_ptr);
 void ListRemove(list_t *list_ptr, int index, int should_free);
 void ListRemoveFirst(list_t *list_ptr, int should_free);
 void ListRemoveLast(list_t *list_ptr, int should_free);
+void ListRemoveValue(list_t *list_ptr, list_data_t data, int should_free);
 int ListIndexOf(list_t *list_ptr, list_data_t data);
+void ListRemoveIterator(list_t *list_ptr, list_iterator_t *iterator, int should_free);
 
-#define ListSize(list_ptr)				list_ptr->count
+void ListNext(list_iterator_t *iterator);
 
-/*
- * Replaces a for loop to iterate through list_ptr, storing the data of each
- * element in data_ptr.
- */
-#define ListIterate(list_ptr, data_ptr)			for(\
-	list_element_t *_next_ptr, *_current_ptr = list_ptr->base_ptr;\
-	_current_ptr != NULL ? (_next_ptr = _current_ptr->next_ptr,\
-		*((list_data_t *)(data_ptr)) = _current_ptr->data, 1) : 0;\
-	_current_ptr = _next_ptr)
+#define ListSize(list_ptr)				(list_ptr)->count
+#define ListIsEmpty(list_ptr)			((list_ptr)->count == 0)
 
-
+list_iterator_t ListIterator(list_t *list_ptr);
+#define ListIsEnd(iterator_ptr)	((iterator_ptr)->element == NULL)
+#define ListIteratorGet(iterator_ptr)	((iterator_ptr)->element->data)
