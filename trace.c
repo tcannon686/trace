@@ -28,6 +28,7 @@
 #include "trace.h"
 #include "lodepng.h"
 #include "shade.h"
+#include "primitives.h"
 #include "cmd.h"
 #include "halton.h"
 #include "texture.h"
@@ -147,7 +148,7 @@ int RayTriangle(primitive_t *self, hit_t *hit_ptr, ray_t *ray)
 	
 	
 	hit_ptr->t = d;
-	hit_ptr->material_ptr = tri->material_ptr;
+	hit_ptr->material_ptr = self->material_ptr;
 	hit_ptr->position = pos;
 	hit_ptr->ray = *ray;
 	hit_ptr->primitive_ptr = self;
@@ -193,6 +194,7 @@ void BoundingBoxTriangle(primitive_t *primitive)
 {
 	bounding_box_t ret;
 	triangle_t *tri = (triangle_t *) primitive->data;
+	primitive->origin = tri->origin;
 	ret.a = tri->v[0];
 	ret.b = tri->v[1];
 	for(int i = 0; i < 3; i ++)
@@ -303,7 +305,7 @@ void CleanPrimitives(render_settings_t *rs, list_t *primitives_ptr)
 		ListNext(&iterator))
 	{
 		primitive_t *primitive = (primitive_t *)ListIteratorGet(&iterator).data_ptr;
-		if(primitive->type == rs->triangle_class_ptr
+		if(primitive->type == &rs->triangle_class
 			&& ((triangle_t *)primitive->data)->area <= THRESHOLD)
 		{
 			// Remove the triangle.
@@ -1092,12 +1094,7 @@ int main(int argc, char **argv)
 	hashtable_t *table_cmds = HashTableNewDefault();
 	CommandsSetStandard(table_cmds);
 	CommandsSetTexture(table_cmds);
-
-	primitive_class_t triangle_class;
-	triangle_class.gen_box = BoundingBoxTriangle;
-	triangle_class.hit_test = RayTriangle;
-	triangle_class.name = "triangle";
-	triangle_class.print = PrintTriangle;
+	CommandsSetPrimitives(table_cmds);
 	
 	scene_t scene;
 	scene.table = HashTableNewDefault();
@@ -1107,7 +1104,12 @@ int main(int argc, char **argv)
 	rs->transform_ptr = rs->transform_stack;
 	IdentityMatrixP(rs->transform_ptr);
 
-	rs->triangle_class_ptr = &triangle_class;
+	rs->triangle_class.gen_box = BoundingBoxTriangle;
+	rs->triangle_class.hit_test = RayTriangle;
+	rs->triangle_class.name = "triangle";
+	rs->triangle_class.print = PrintTriangle;
+
+	InitPrimitives(rs);
 	
 	rs->primitives_ptr = ListNew(PrimitiveFree, NULL);
 	rs->materials_ptr = ListNew(MaterialFree, NULL);
@@ -1157,6 +1159,11 @@ int main(int argc, char **argv)
 	printf("info: freeing memory.\n");
 	HashTableFree(table_cmds);
 	ListFree(rs->images_ptr);
+	ListFree(rs->lights_ptr);
+	ListFree(rs->materials_ptr);
+	ListFree(rs->primitives_ptr);
+	ListFree(rs->texture2ds_ptr);
+
 	printf("info: goodbye.\n");
 	return 0;
 }

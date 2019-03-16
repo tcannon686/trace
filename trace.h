@@ -125,6 +125,7 @@ typedef struct primitive
 {
 	primitive_class_t *type;
 	bounding_box_t box;
+	material_t *material_ptr;
 	vector_t origin;
 	void *data;
 } primitive_t;
@@ -206,8 +207,6 @@ typedef struct triangle
 	vector_t normal;
 	
 	vecc_t area;
-	
-	material_t *material_ptr;
 } triangle_t;
 
 typedef struct kd_tree
@@ -245,7 +244,9 @@ typedef struct render_settings
 	list_t *images_ptr;
 	image_t *image_ptr;
 	scene_t *scene_ptr;
-	primitive_class_t *triangle_class_ptr;
+	// Primitive classes
+	primitive_class_t triangle_class;
+	primitive_class_t sphere_class;
 	int current_point;
 	int current_normal;
 	int current_texco;
@@ -283,6 +284,8 @@ vector_t VectorMix(vector_t left, vector_t right, vecc_t a);
 void PrintPrimitives(list_t *primitives_ptr);
 void FreeTree(kd_tree_t *tree_ptr);
 void PrimitiveFree(void *ptr);
+void MaterialFree(void *ptr);
+void LightFree(void *ptr);
 
 void RenderImageCallback(int x, int y, vector_t color, void *data);
 
@@ -312,6 +315,8 @@ int ReadVec2(render_settings_t *rs, vector_t *v);
 int ReadNumber(render_settings_t *rs, vecc_t *v);
 int ReadInteger(render_settings_t *rs, int *i);
 int ReadUnsignedInteger(render_settings_t *rs, unsigned int *i);
+
+void PrintVector(vector_t v);
 
 void SetCommand(hashtable_t *table, char *key, cmd_t cmd);
 

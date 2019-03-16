@@ -18,6 +18,8 @@ list_t *ListNew(void (*free)(void *), int (*cmp)(void *, void  *))
 
 void ListFree(list_t *list)
 {
+	if(list == NULL)
+		return;
 	list_element_t *current = list->base_ptr;
 	list_element_t *next_ptr;
 	while(current != NULL)

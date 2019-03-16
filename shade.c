@@ -239,7 +239,35 @@ vector_t PhongShader(
 		VectorClampP(&refract_color, &refract_color);
 		diffuse_color = VectorMix(refract_color, diffuse_color, alpha);
 	}
-	
 	return VectorPlusVector(diffuse_color, specular_color);
 }
 
+vector_t NormalShader(
+    void *shader_data,
+    hit_t *hit_ptr,
+    render_params_t *rp_ptr,
+    int samples, int max_samples,
+    int iteration, int max_iterations)
+{
+	vector_t ret;
+	ret.x = hit_ptr->normal.x * 0.5 + 0.5;
+	ret.y = hit_ptr->normal.y * 0.5 + 0.5;
+	ret.z = hit_ptr->normal.z * 0.5 + 0.5;
+	ret.w = 1.0;
+	return ret;
+}
+
+vector_t DepthShader(
+    void *shader_data,
+    hit_t *hit_ptr,
+    render_params_t *rp_ptr,
+    int samples, int max_samples,
+    int iteration, int max_iterations)
+{
+	vector_t ret;
+	vecc_t brightness = 1.0 / hit_ptr->t;
+	if(brightness > 1.0)
+		brightness = 1.0;
+	ret = vec4(brightness, brightness, brightness, 1.0);
+	return ret;
+}

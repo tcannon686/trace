@@ -51,14 +51,14 @@ void ListFree(list_t *list_ptr);
 void ListAppend(list_t *list_ptr, list_data_t data);
 
 /* Helper macro for appending to a list. */
-#define ListAppendType(type, list_ptr, data) { list_data_t _d; _d.type = data; ListAppend(list_ptr, _d); }
-#define ListAppendPointer(list_ptr, data) ListAppendType(data_ptr, list_ptr, data)
-#define ListAppendLong(list_ptr, data) ListAppendType(data_long, list_ptr, data)
-#define ListAppendInt(list_ptr, data) ListAppendType(data_int, list_ptr, data)
-#define ListAppendShort(list_ptr, data) ListAppendType(data_short, list_ptr, data)
-#define ListAppendChar(list_ptr, data) ListAppendType(data_char, list_ptr, data)
-#define ListAppendDouble(list_ptr, data) ListAppendType(data_double, list_ptr, data)
-#define ListAppendFloat(list_ptr, data) ListAppendType(data_float, list_ptr, data)
+#define ListAppendType(type, list_ptr, data) { list_data_t _d; _d.type = (data); ListAppend((list_ptr), _d); }
+#define ListAppendPointer(list_ptr, data) ListAppendType(data_ptr, (list_ptr), (data))
+#define ListAppendLong(list_ptr, data) ListAppendType(data_long, (list_ptr), data))
+#define ListAppendInt(list_ptr, data) ListAppendType(data_int, (list_ptr), (data))
+#define ListAppendShort(list_ptr, data) ListAppendType(data_short, (list_ptr), (data))
+#define ListAppendChar(list_ptr, data) ListAppendType(data_char, (list_ptr), (data))
+#define ListAppendDouble(list_ptr, data) ListAppendType(data_double, (list_ptr), (data))
+#define ListAppendFloat(list_ptr, data) ListAppendType(data_float, (list_ptr), (data))
 list_data_t ListGet(list_t *list_ptr, int index);
 list_data_t ListGetFirst(list_t *list_ptr);
 list_data_t ListGetLast(list_t *list_ptr);

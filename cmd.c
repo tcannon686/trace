@@ -13,6 +13,7 @@
 #include "shade.h"
 #include "xwin.h"
 #include "cmd.h"
+#include "texture.h"
 #include "halton.h"
 
 
@@ -51,7 +52,7 @@ int CmdVertex(render_settings_t *rs)
 	primitive_t *primitive;
 	triangle_t *triangle_ptr;
 	primitive = (primitive_t *)ListGetLast(rs->primitives_ptr).data_ptr;
-	if(primitive->type != rs->triangle_class_ptr)
+	if(primitive->type != &rs->triangle_class)
 	{
 		fprintf(stderr, "error: 'vertex' last primitive is not a triangle.");
 		return 1;
@@ -96,8 +97,8 @@ int CmdVertex(render_settings_t *rs)
 				VectorPlusVector(triangle_ptr->v0,
 					VectorPlusVector(triangle_ptr->v1, triangle_ptr->v2)),
 				1.0 / 3.0);
-		primitive->origin = triangle_ptr->origin;
-		triangle_ptr->material_ptr = rs->current_material_ptr;
+		// primitive->origin = triangle_ptr->origin;
+		primitive->material_ptr = rs->current_material_ptr;
 		rs->current_point = 0;
 	}
 	return 1;
@@ -107,7 +108,7 @@ int CmdMakeFace(render_settings_t *rs)
 {
 	primitive_t *primitive_ptr;
 	primitive_ptr = (primitive_t *)malloc(sizeof(triangle_t));
-	primitive_ptr->type = rs->triangle_class_ptr;
+	primitive_ptr->type = &rs->triangle_class;
 	primitive_ptr->data = malloc(sizeof(triangle_t));
 	ListAppendPointer(rs->primitives_ptr, primitive_ptr);
 	return 1;
@@ -128,7 +129,7 @@ int CmdNormal(render_settings_t *rs)
 	primitive_t *primitive;
 	triangle_t *triangle_ptr;
 	primitive = (primitive_t *)ListGetLast(rs->primitives_ptr).data_ptr;
-	if(primitive->type != rs->triangle_class_ptr)
+	if(primitive->type != &rs->triangle_class)
 	{
 		fprintf(stderr, "error: 'normal' last primitive is not a triangle.");
 		return 1;
@@ -162,7 +163,7 @@ int CmdTexCo2d(render_settings_t *rs)
 	primitive_t *primitive;
 	triangle_t *triangle_ptr;
 	primitive = (primitive_t *)ListGetLast(rs->primitives_ptr).data_ptr;
-	if(primitive->type != rs->triangle_class_ptr)
+	if(primitive->type != &rs->triangle_class)
 	{
 		fprintf(stderr, "error: 'vertex' last primitive is not a triangle.");
 		return 1;
@@ -346,8 +347,12 @@ int CmdMatShader(render_settings_t *rs)
 		fprintf(stderr, "error: 'mat_shader' not enough arguments.\n");
 		return 1;
 	}
-	if (strcmp(key, "phong"))
+	if (strcmp(key, "phong") == 0)
 		rs->material_ptr->shader = PhongShader;
+	else if(strcmp(key, "normal") == 0)
+		rs->material_ptr->shader = NormalShader;
+	else if(strcmp(key, "depth") == 0)
+		rs->material_ptr->shader = DepthShader;
 	else
 	{
 		fprintf(stderr, "error: '%s' shader not found.\n", key);
@@ -560,6 +565,9 @@ int CmdRender(render_settings_t *rs)
 	int tri_count = ListSize(rs->primitives_ptr);
 	
 	kd_tree_t *tree_ptr = GenerateTree(rs->primitives_ptr, 0, &max_depth);
+	// Primitives will be free after GenerateTree is called.
+	rs->primitives_ptr = ListNew(PrimitiveFree, NULL);
+	
 	end_time = clock();
 	elapsed_secs = (float)(end_time - start_time) / CLOCKS_PER_SEC;
 	start_time = end_time;
@@ -592,9 +600,9 @@ int CmdRender(render_settings_t *rs)
 	ListFree(rs->materials_ptr);
 	ListFree(rs->lights_ptr);
 	ListFree(rs->texture2ds_ptr);
-	rs->texture2ds_ptr = NULL;
-	rs->materials_ptr = NULL;
-	rs->lights_ptr = NULL;
+	rs->texture2ds_ptr = ListNew(Texture2dFree, NULL);
+	rs->materials_ptr = ListNew(MaterialFree, NULL);
+	rs->lights_ptr = ListNew(LightFree, 0);
 	return 1;
 }
 
