@@ -41,6 +41,7 @@ int RaySphere(primitive_t *self, hit_t *hit_ptr, ray_t *ray)
     vector_t l = VectorTimesScalar(ray->d, 1.0 / lenD);
     vecc_t discriminant;
     vecc_t d, t;
+	vecc_t sqrtDiscriminant;
 
     oMinusC = VectorMinusVector(ray->o, sphere->origin);
 
@@ -55,11 +56,15 @@ int RaySphere(primitive_t *self, hit_t *hit_ptr, ray_t *ray)
 
     // Otherwise return the near solution.
 
-    d = -lDotOMinusC - sqrt(discriminant);
+	sqrtDiscriminant = sqrt(discriminant);
+	if(-lDotOMinusC - sqrtDiscriminant > 0)
+		d = -lDotOMinusC - sqrt(discriminant);
+	else
+		d = -lDotOMinusC + sqrt(discriminant);
     t = d * lenD;
     
     // Don't return if the ray is behind something.
-    if(t >= hit_ptr->t || t < 0)
+    if(t > hit_ptr->t || t <= 0)
         return 0;
     
     hit_ptr->t = t;
@@ -75,6 +80,8 @@ int RaySphere(primitive_t *self, hit_t *hit_ptr, ray_t *ray)
             1.0 / sphere->radius);
     hit_ptr->primitive_ptr = self;
     hit_ptr->texco = vec2(0, 0);
+
+	hit_ptr->ray = *ray;
 
     return 1;
 }
@@ -150,8 +157,9 @@ int CmdSphereOrigin(render_settings_t *rs)
 		return 1;
 	}
 
+
 	sphere_ptr = (sphere_t *) primitive->data;
-    sphere_ptr->origin = origin;
+	MatrixTimesVectorP(&sphere_ptr->origin, rs->transform_ptr, &origin);
     return 1;
 }
 

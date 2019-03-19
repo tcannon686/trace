@@ -230,8 +230,8 @@ int WindowMain(render_settings_t *rs, int width, int height)
 	Colormap cmap = DefaultColormap(display, DefaultScreen(display));
 	
 	printf("info: generating tree\n");
-	CleanTriangles(&rs->triangles_ptr);
-	kd_tree_t *tree_ptr = GenerateTree(rs->triangles_ptr, 0, NULL);
+	CleanPrimitives(rs, rs->primitives_ptr);
+	kd_tree_t *tree_ptr = GenerateTree(rs->primitives_ptr, 0, NULL);
 	
 	callback_data_t *cd = malloc(sizeof(callback_data_t));
 	cd->display = display;

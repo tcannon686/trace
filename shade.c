@@ -271,3 +271,20 @@ vector_t DepthShader(
 	ret = vec4(brightness, brightness, brightness, 1.0);
 	return ret;
 }
+
+vector_t PositionShader(
+    void *shader_data,
+    hit_t *hit_ptr,
+    render_params_t *rp_ptr,
+    int samples, int max_samples,
+    int iteration, int max_iterations)
+{
+	vector_t ret;
+	ret.x = hit_ptr->position.x / 10 + 0.5;
+	ret.y = hit_ptr->position.y / 10 + 0.5;
+	ret.z = hit_ptr->position.z / 10 + 0.5;
+	ret.w = 1.0;
+	return ret;
+}
+
+

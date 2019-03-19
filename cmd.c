@@ -353,6 +353,8 @@ int CmdMatShader(render_settings_t *rs)
 		rs->material_ptr->shader = NormalShader;
 	else if(strcmp(key, "depth") == 0)
 		rs->material_ptr->shader = DepthShader;
+	else if(strcmp(key, "position") == 0)
+		rs->material_ptr->shader = PositionShader;
 	else
 	{
 		fprintf(stderr, "error: '%s' shader not found.\n", key);
